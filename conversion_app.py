@@ -146,46 +146,40 @@ def highlight_scouting_outliers(row):
                 
     return styles
 def fetch_html_content(url, headers=None, data=None, method="GET"):
-	"""
-	HTTP helper that uses curl_cffi (if available) to impersonate Chrome and bypass anti-bot blocks.
-	Falls back to standard urllib if curl_cffi is missing.
-	"""
-	if not headers:
-		headers = {
-			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-			"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
-			"Accept-Language": "en-US,en;q=0.9",
-			"Connection": "keep-alive",
-			"Upgrade-Insecure-Requests": "1"
-		}
+    """
+    Improved HTTP helper to bypass 403 Forbidden blocks.
+    """
+    if not headers:
+        headers = {
+            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+            "Accept-Language": "en-US,en;q=0.9",
+            "Referer": "https://basketball.realgm.com/",
+            "Upgrade-Insecure-Requests": "1",
+            "Connection": "keep-alive",
+        }
 
-	if curl_requests:
-		try:
-			if method.upper() == "POST":
-				# Convert urlencoded bytes back to a dictionary if passed from legacy FEB flow
-				if isinstance(data, bytes):
-					data_str = data.decode('utf-8', errors='ignore')
-					data = dict(urllib.parse.parse_qsl(data_str))
-				response = curl_requests.post(url, headers=headers, data=data, impersonate="chrome120", timeout=12)
-			else:
-				response = curl_requests.get(url, headers=headers, impersonate="chrome120", timeout=12)
-				
-			if response.status_code == 200:
-				return response.text, response.url, None
-			else:
-				return None, None, f"HTTP Error {response.status_code}"
-		except Exception as e:
-			return None, None, f"Fetch failed: {str(e)}"
-	else:
-		# Fallback to legacy urllib
-		try:
-			req = urllib.request.Request(url, headers=headers, data=data, method=method)
-			with urllib.request.urlopen(req, timeout=12) as response:
-				html_text = response.read().decode('utf-8', errors='ignore')
-				final_url = response.geturl()
-				return html_text, final_url, None
-		except Exception as e:
-			return None, None, f"{str(e)} (Tip: Install 'curl_cffi' to bypass Cloudflare blocks)"
+    if curl_requests:
+        try:
+            # impersonate="chrome120" is key to bypassing Cloudflare TLS fingerprints
+            if method.upper() == "POST":
+                if isinstance(data, bytes):
+                    data_str = data.decode('utf-8', errors='ignore')
+                    data = dict(urllib.parse.parse_qsl(data_str))
+                response = curl_requests.post(url, headers=headers, data=data, impersonate="chrome120", timeout=20)
+            else:
+                response = curl_requests.get(url, headers=headers, impersonate="chrome120", timeout=20)
+                
+            if response.status_code == 200:
+                return response.text, response.url, None
+            elif response.status_code == 403:
+                return None, None, "Error 403: RealGM is blocking the connection. Try again in a few minutes or use a direct URL."
+            else:
+                return None, None, f"HTTP Error {response.status_code}"
+        except Exception as e:
+            return None, None, f"Fetch failed: {str(e)}"
+    else:
+        return None, None, "Critical Error: 'curl_cffi' not found in environment. Scraping is disabled."
 
 # Set page layout
 st.set_page_config(layout="wide", page_title="RealGM Stats Conversor")
