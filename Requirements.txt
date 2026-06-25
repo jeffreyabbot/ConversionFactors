@@ -1,0 +1,6 @@
+streamlit
+pandas
+numpy
+curl-cffi>=0.14.0
+beautifulsoup4
+lxml
