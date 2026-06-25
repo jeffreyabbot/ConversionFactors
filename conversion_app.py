@@ -147,39 +147,46 @@ def highlight_scouting_outliers(row):
     return styles
 def fetch_html_content(url, headers=None, data=None, method="GET"):
     """
-    Improved HTTP helper to bypass 403 Forbidden blocks.
+    Advanced HTTP helper to bypass Cloudflare on Streamlit Cloud.
     """
-    if not headers:
-        headers = {
-            "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-            "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-            "Accept-Language": "en-US,en;q=0.9",
-            "Referer": "https://basketball.realgm.com/",
-            "Upgrade-Insecure-Requests": "1",
-            "Connection": "keep-alive",
-        }
+    # Updated headers to look like Chrome 124 (standard in mid-2026)
+    default_headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
+        "Accept-Language": "en-US,en;q=0.9",
+        "Accept-Encoding": "gzip, deflate, br",
+        "DNT": "1",
+        "Connection": "keep-alive",
+        "Upgrade-Insecure-Requests": "1",
+        "Sec-Fetch-Dest": "document",
+        "Sec-Fetch-Mode": "navigate",
+        "Sec-Fetch-Site": "none",
+        "Sec-Fetch-User": "?1",
+    }
+    
+    if headers:
+        default_headers.update(headers)
 
     if curl_requests:
         try:
-            # impersonate="chrome120" is key to bypassing Cloudflare TLS fingerprints
+            # impersonate="chrome110" or "chrome120" is currently most stable for bypassing
+            session = curl_requests.Session()
             if method.upper() == "POST":
                 if isinstance(data, bytes):
                     data_str = data.decode('utf-8', errors='ignore')
                     data = dict(urllib.parse.parse_qsl(data_str))
-                response = curl_requests.post(url, headers=headers, data=data, impersonate="chrome120", timeout=20)
+                response = session.post(url, headers=default_headers, data=data, impersonate="chrome120", timeout=25)
             else:
-                response = curl_requests.get(url, headers=headers, impersonate="chrome120", timeout=20)
+                response = session.get(url, headers=default_headers, impersonate="chrome120", timeout=25)
                 
             if response.status_code == 200:
                 return response.text, response.url, None
-            elif response.status_code == 403:
-                return None, None, "Error 403: RealGM is blocking the connection. Try again in a few minutes or use a direct URL."
             else:
-                return None, None, f"HTTP Error {response.status_code}"
+                return None, None, f"Error {response.status_code}: RealGM rejected the server request."
         except Exception as e:
             return None, None, f"Fetch failed: {str(e)}"
     else:
-        return None, None, "Critical Error: 'curl_cffi' not found in environment. Scraping is disabled."
+        return None, None, "Library Error: curl_cffi not loaded."
 
 # Set page layout
 st.set_page_config(layout="wide", page_title="RealGM Stats Conversor")
