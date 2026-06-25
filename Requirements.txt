@@ -1,6 +1,6 @@
 streamlit
 pandas
-numpy
-curl-cffi>=0.14.0
 beautifulsoup4
 lxml
+curl_cffi>=0.7.0
+certifi
