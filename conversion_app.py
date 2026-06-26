@@ -620,17 +620,8 @@ def load_scraped_row_into_state(df_row, player_name, height_cm, yob, team_name="
     gp_val = get_val(["GP"])
     if gp_val > 0: st.session_state.p_gp = int(gp_val)
 
-    # 5. RUN AUTO-SCOUT (Using the history we collected in step 2)
-    st.session_state.p_selected_modifiers = auto_detect_situational_modifiers(
-        mapped_stats, 
-        yob if yob else 2005, 
-        height_cm if height_cm else 185, 
-        int(gp_val if gp_val else 1),
-        st.session_state.p_orig_league_name, 
-        st.session_state.p_dest_league_name, 
-        st.session_state.p_position,
-        history = rgm_history 
-    )
+    # 5. INITIALIZE ACTIVE MODIFIERS AS EMPTY TO LET USER DECIDE ON SUGGESTIONS
+    st.session_state.p_selected_modifiers = []
 
     # 6. SYNC AND UPDATE UI WIDGETS DIRECTLY (Assign values to the widget keys)
     st.session_state.t_player_name = player_name
@@ -639,7 +630,7 @@ def load_scraped_row_into_state(df_row, player_name, height_cm, yob, team_name="
     if yob: st.session_state.t_yob = int(yob)
     if gp_val > 0: st.session_state.t_gp = int(gp_val)
     
-    st.session_state.t_selected_modifiers = st.session_state.p_selected_modifiers
+    st.session_state.t_selected_modifiers = []
     st.session_state.data_version += 1  # Force data editor refresh
 
 def add_to_shortlist_callback(
@@ -794,11 +785,6 @@ def auto_detect_situational_modifiers(stats, yob, height, gp, orig_league_name, 
 		for h_row in chrono_history:
 			h_league = h_row.get('league', h_row.get('LEAGUE', h_row.get('CONFERENCE', '')))
 			
-			# FEB Fallback: Match dynamically parsed leagues
-			if not h_league and 'stats' in h_row:
-				if dest_league_name in ["Spain Segunda FEB", "Spain Primera FEB", "Spain Tercera FEB"]:
-					h_league = dest_league_name
-					
 			if h_league in leagues_df['League'].values:
 				h_tier = float(leagues_df[leagues_df['League'] == h_league]['Tier'].iloc[0])
 				historical_tiers.append(h_tier)
@@ -1081,15 +1067,11 @@ def load_feb_row_into_state(df_row, player_name, height_cm, yob, team_name, gp, 
     st.session_state.p_height = int(height_cm) if height_cm else 0
     st.session_state.p_yob = int(yob)
 
-    # 4. Auto-detect Situational Modifiers
-    st.session_state.p_selected_modifiers = auto_detect_situational_modifiers(
-        mapped_stats, int(yob), int(height_cm), int(gp_val), 
-        st.session_state.p_orig_league_name, st.session_state.p_dest_league_name, 
-        st.session_state.p_position, history=history
-    )
-    st.session_state.t_selected_modifiers = st.session_state.p_selected_modifiers
+    # 4. Initialize Active Modifiers as empty to let user decide on suggestions
+    st.session_state.p_selected_modifiers = []
+    st.session_state.t_selected_modifiers = []
 
-    # 5. Sync UI Widgets Directly (Assign values to the widget keys)
+    # 5. Sync UI Widgets Directly
     st.session_state.t_player_name = player_name
     st.session_state.t_orig_team = team_name
     st.session_state.t_yob = int(yob)
