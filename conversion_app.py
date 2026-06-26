@@ -2576,7 +2576,7 @@ else:
 		three_pct = st.session_state.raw_stats.get("3P%", 0)
 		ft_pct = st.session_state.raw_stats.get("FT%", 0)
 
-		if three_pct > 0.38 and ft_pct < 0.70:
+		if three_pct > 0.38 and ft_pct < 0.65:
 			st.warning(f"Shooting Fluke Matrix: High 3P% ({three_pct*100:.1f}%) but poor FT% ({ft_pct*100:.1f}%). 3P% is likely unsustainable (+1.5 Risk).")
 			warnings += 1
 		elif three_pct < 0.32 and ft_pct > 0.82:
