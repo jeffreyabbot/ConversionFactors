@@ -146,47 +146,46 @@ def highlight_scouting_outliers(row):
                 
     return styles
 def fetch_html_content(url, headers=None, data=None, method="GET"):
-    """
-    Advanced HTTP helper to bypass Cloudflare on Streamlit Cloud.
-    """
-    # Updated headers to look like Chrome 124 (standard in mid-2026)
-    default_headers = {
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.7",
-        "Accept-Language": "en-US,en;q=0.9",
-        "Accept-Encoding": "gzip, deflate, br",
-        "DNT": "1",
-        "Connection": "keep-alive",
-        "Upgrade-Insecure-Requests": "1",
-        "Sec-Fetch-Dest": "document",
-        "Sec-Fetch-Mode": "navigate",
-        "Sec-Fetch-Site": "none",
-        "Sec-Fetch-User": "?1",
-    }
-    
-    if headers:
-        default_headers.update(headers)
+	"""
+	HTTP helper that uses curl_cffi (if available) to impersonate Chrome and bypass anti-bot blocks.
+	Falls back to standard urllib if curl_cffi is missing.
+	"""
+	if not headers:
+		headers = {
+			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
+			"Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,image/apng,*/*;q=0.8",
+			"Accept-Language": "en-US,en;q=0.9",
+			"Connection": "keep-alive",
+			"Upgrade-Insecure-Requests": "1"
+		}
 
-    if curl_requests:
-        try:
-            # impersonate="chrome110" or "chrome120" is currently most stable for bypassing
-            session = curl_requests.Session()
-            if method.upper() == "POST":
-                if isinstance(data, bytes):
-                    data_str = data.decode('utf-8', errors='ignore')
-                    data = dict(urllib.parse.parse_qsl(data_str))
-                response = session.post(url, headers=default_headers, data=data, impersonate="chrome120", timeout=25)
-            else:
-                response = session.get(url, headers=default_headers, impersonate="chrome120", timeout=25)
-                
-            if response.status_code == 200:
-                return response.text, response.url, None
-            else:
-                return None, None, f"Error {response.status_code}: RealGM rejected the server request."
-        except Exception as e:
-            return None, None, f"Fetch failed: {str(e)}"
-    else:
-        return None, None, "Library Error: curl_cffi not loaded."
+	if curl_requests:
+		try:
+			if method.upper() == "POST":
+				# Convert urlencoded bytes back to a dictionary if passed from legacy FEB flow
+				if isinstance(data, bytes):
+					data_str = data.decode('utf-8', errors='ignore')
+					data = dict(urllib.parse.parse_qsl(data_str))
+				response = curl_requests.post(url, headers=headers, data=data, impersonate="chrome120", timeout=12)
+			else:
+				response = curl_requests.get(url, headers=headers, impersonate="chrome120", timeout=12)
+				
+			if response.status_code == 200:
+				return response.text, response.url, None
+			else:
+				return None, None, f"HTTP Error {response.status_code}"
+		except Exception as e:
+			return None, None, f"Fetch failed: {str(e)}"
+	else:
+		# Fallback to legacy urllib
+		try:
+			req = urllib.request.Request(url, headers=headers, data=data, method=method)
+			with urllib.request.urlopen(req, timeout=12) as response:
+				html_text = response.read().decode('utf-8', errors='ignore')
+				final_url = response.geturl()
+				return html_text, final_url, None
+		except Exception as e:
+			return None, None, f"{str(e)} (Tip: Install 'curl_cffi' to bypass Cloudflare blocks)"
 
 # Set page layout
 st.set_page_config(layout="wide", page_title="RealGM Stats Conversor")
@@ -300,6 +299,8 @@ st.markdown(
 # ==========================================
 # 2. INITIALIZE SESSION STATE (MEMORY)
 # ==========================================
+if "data_version" not in st.session_state:
+	st.session_state.data_version = 0
 if "view_mode" not in st.session_state:
 	st.session_state.view_mode = "Home"
 if "p_player_name" not in st.session_state:
@@ -344,6 +345,9 @@ if "p_variability" not in st.session_state:
 	st.session_state.p_variability = 0.20
 if "p_orig_team_quality" not in st.session_state:
 	st.session_state.p_orig_team_quality = "Mid-Table (Default)"
+if "data_version" not in st.session_state:
+	st.session_state.data_version = 0
+
 # ==========================================
 # 3. RAW LEAGUE DATASET
 # ==========================================
@@ -628,16 +632,16 @@ def load_scraped_row_into_state(df_row, player_name, height_cm, yob, team_name="
         history = rgm_history 
     )
 
-    # 6. SYNC AND CLEAR UI
-    st.session_state.t_selected_modifiers = st.session_state.p_selected_modifiers
+    # 6. SYNC AND UPDATE UI WIDGETS DIRECTLY (Assign values to the widget keys)
+    st.session_state.t_player_name = player_name
+    st.session_state.t_orig_team = str(team_name)
+    if height_cm: st.session_state.t_height = int(height_cm)
+    if yob: st.session_state.t_yob = int(yob)
+    if gp_val > 0: st.session_state.t_gp = int(gp_val)
     
-    t_keys_to_clear = [
-        "t_player_name", "t_orig_team", "t_yob", "t_height", 
-        "t_gp", "t_position", "t_selected_modifiers"
-    ]
-    for k in t_keys_to_clear:
-        if k in st.session_state:
-            del st.session_state[k]
+    st.session_state.t_selected_modifiers = st.session_state.p_selected_modifiers
+    st.session_state.data_version += 1  # Force data editor refresh
+
 def add_to_shortlist_callback(
 	name, orig_team, orig_league, dest_league, position, target_role, calculated_age, height_cm, gp, 
 	raw_stats, proj, total_risk_score, total_context_multiplier, active_modifiers, variability,
@@ -1085,11 +1089,14 @@ def load_feb_row_into_state(df_row, player_name, height_cm, yob, team_name, gp, 
     )
     st.session_state.t_selected_modifiers = st.session_state.p_selected_modifiers
 
-    # 5. Force UI Refresh
-    t_keys_to_clear = ["t_player_name", "t_orig_team", "t_yob", "t_height", "t_gp", "t_selected_modifiers"]
-    for k in t_keys_to_clear:
-        if k in st.session_state:
-            del st.session_state[k]
+    # 5. Sync UI Widgets Directly (Assign values to the widget keys)
+    st.session_state.t_player_name = player_name
+    st.session_state.t_orig_team = team_name
+    st.session_state.t_yob = int(yob)
+    st.session_state.t_height = int(height_cm) if height_cm else 0
+    st.session_state.t_gp = int(gp_val)
+    st.session_state.data_version += 1  # Force data editor refresh
+
 def parse_feb_player_profile(url, html_text=None):
     headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"}
     try:
@@ -1547,7 +1554,7 @@ with st.sidebar:
 			file_name="ingame_prospect_shortlist.csv",
 			mime="text/csv",
 			key="export_shortlist_csv",
-			use_container_width=True
+			width="stretch"
 		)
 		
 		# Use on-click callback for safe state preservation on manual reset
@@ -1555,7 +1562,7 @@ with st.sidebar:
 			"Clear Shortlist", 
 			key="clear_shortlist_btn", 
 			on_click=clear_shortlist_callback, 
-			use_container_width=True
+			width="stretch"
 		)
 	else:
 		st.markdown(
@@ -1653,7 +1660,10 @@ if st.session_state.view_mode == "Home":
 
 # ----------------- CONVERSION WORKSPACE -----------------
 else:
-    
+	# Declare scope-level variables as safe defaults to prevent undefined warnings
+	search_query = ""
+	selected_index = None
+
 	# 1. Resolve all persistent inputs from widget state (t_ keys) or safe persistent state (p_ keys) first
 	player_name = st.session_state.get("t_player_name", st.session_state.p_player_name)
 	orig_team = st.session_state.get("t_orig_team", st.session_state.p_orig_team)
@@ -1886,7 +1896,19 @@ else:
 				)
 				st.session_state.p_target_role = target_role_widget
 				
-				target_min_widget = st.slider("Expected Played Minutes (Min)", 5.0, 40.0, value=float(st.session_state.p_target_min), step=0.5, key="t_target_min")
+				st.markdown(
+					"<div style='font-weight: 700; color: #E63946; font-size: 14px; margin-top: 12px; margin-bottom: 4px;'>Expected Played Minutes (Min) *</div>", 
+					unsafe_allow_html=True
+				)
+				target_min_widget = st.slider(
+				"Expected Played Minutes (Min)", 
+				5.0, 
+				40.0, 
+				value=float(st.session_state.p_target_min), 
+				step=0.5, 
+				key="t_target_min",
+				label_visibility="collapsed"
+				)
 				st.session_state.p_target_min = target_min_widget
 				
 				# Prominent Active Situational Modifiers placed in context setup
@@ -2080,15 +2102,16 @@ else:
 					row_index = row_labels.index(selected_row_label)
 					selected_row = df.iloc[row_index]
 					
-					p_name = search_query
+					p_name = search_query if search_query else "Selected Player"
 					if st.session_state.search_results and not st.session_state.search_results.get("direct_match"):
-						p_name = results["results"][selected_index]["name"]
+						if 'selected_index' in locals() and selected_index is not None:
+							p_name = results["results"][selected_index]["name"]
 					
 					p_team = selected_row.get("TEAM", selected_row.get("SCHOOL", "Unknown Team"))
 						
 					st.button(
 					"Import Selected Stats into Workspace",
-					on_click=load_scraped_row_into_state, # <--- FIX: Use the scraped row function
+					on_click=load_scraped_row_into_state, 
 					args=(selected_row, p_name, profile['height_cm'], profile['yob'], p_team)
 				)
 
@@ -2147,8 +2170,8 @@ else:
                                 scraped_yob, 
                                 selected_team, 
                                 gp_num,
-                                row_labels[selected_idx], # <--- PASS LABEL
-                                f_profile["rows"]         # <--- PASS HISTORY
+                                row_labels[selected_idx], # --- PASS LABEL
+                                f_profile["rows"]         # --- PASS HISTORY
                             )
                         )
 			# RealGM Manual Row Importer
@@ -2167,7 +2190,9 @@ else:
 							st.error(error)
 						else:
 							st.session_state.raw_stats = parsed_stats
-							st.session_state.gp = parsed_gp
+							st.session_state.p_gp = int(parsed_gp)
+							st.session_state.t_gp = int(parsed_gp)
+							st.session_state.data_version += 1  # Force data editor refresh
 							st.success("Successfully parsed and updated active statistics!")
 							st.rerun()
 		if "shooting_debug" in st.session_state:
@@ -2181,8 +2206,11 @@ else:
 				df_rows = [{"Metric": metric, "Value": float(st.session_state.raw_stats.get(metric, 0.0))} for metric in ordered_metrics]
 				df_stats = pd.DataFrame(df_rows)
 				
+				# Dynamic Key resolves widget cache preservation on data imports
+				editor_key = f"raw_metrics_editor_{st.session_state.data_version}"
 				edited_df = st.data_editor(
 					df_stats,
+					key=f"raw_metrics_editor_{st.session_state.data_version}", # Dynamic key
 					column_config={
 						"Metric": st.column_config.TextColumn("Metric", disabled=True),
 						"Value": st.column_config.NumberColumn("Value", min_value=0.0, step=0.001, format="%.3f")
@@ -2254,7 +2282,7 @@ else:
 			unsafe_allow_html=True
 		)
 		st.markdown(f"### Conversion Projections: {player_name}")
-		st.caption(f"Calculated Age: {calculated_age} | Height: {height} cm | Target Minutes: {target_min} min | Target Position: {position} ({orig_league_name} ➔ {dest_league_name})")
+		st.caption(f"Calculated Age: {calculated_age} | Height: {height} cm | Target Minutes: {target_min} min | Target Position: {position}")
 
 		# --- RE-DEFINE HELPER FUNCTIONS (Fixes UndefinedVariable errors) ---
 		def apply_var(val, var, direction=1):
@@ -2316,7 +2344,7 @@ else:
 			# Updated dataframe view with clean, compact, pixel-precise sizing
 			st.dataframe(
 				styled_df,
-				use_container_width=False, # Prevents horizontal stretching
+				width="content", 
 				height=500,
 				column_config={
 					"Floor": st.column_config.TextColumn(width=110),
@@ -2478,7 +2506,7 @@ else:
 					)
 				)
 				
-				# --- NEW: RISK & BADGES SCORING GUIDE ---
+				# --- RISK & BADGES SCORING GUIDE ---
 				st.markdown("---")
 				with st.expander("ℹ️ Risk & Badges Guide", expanded=False):
 					st.caption("Understand how individual risk flags and performance badges are calculated based on your Excel-derived matrices:")
