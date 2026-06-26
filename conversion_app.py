@@ -147,9 +147,31 @@ def highlight_scouting_outliers(row):
     return styles
 def fetch_html_content(url, headers=None, data=None, method="GET"):
 	"""
-	HTTP helper that uses curl_cffi (if available) to impersonate Chrome and bypass anti-bot blocks.
-	Falls back to standard urllib if curl_cffi is missing.
+	HTTP helper. If deployed online and SCRAPERAPI_KEY is found in secrets,
+	routes RealGM requests through ScraperAPI to bypass Cloudflare.
+	Defaults back to direct curl_cffi for local testing or unblocked domains.
 	"""
+	# Safely attempt to read the ScraperAPI key from Streamlit secrets
+	scraperapi_key = None
+	try:
+		if "SCRAPERAPI_KEY" in st.secrets:
+			scraperapi_key = st.secrets["SCRAPERAPI_KEY"]
+	except Exception:
+		pass
+
+	# Optimization: Only route RealGM through ScraperAPI to save your free monthly credits!
+	if scraperapi_key and "realgm.com" in url:
+		encoded_url = urllib.parse.quote(url)
+		api_url = f"http://api.scraperapi.com?api_key={scraperapi_key}&url={encoded_url}"
+		try:
+			req = urllib.request.Request(api_url)
+			with urllib.request.urlopen(req, timeout=20) as response:
+				html_text = response.read().decode('utf-8', errors='ignore')
+				return html_text, url, None
+		except Exception as e:
+			return None, None, f"ScraperAPI routing failed: {str(e)}"
+
+	# --- Direct Local Fallback (For local runs, or FEB.es which isn't blocked) ---
 	if not headers:
 		headers = {
 			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -162,7 +184,6 @@ def fetch_html_content(url, headers=None, data=None, method="GET"):
 	if curl_requests:
 		try:
 			if method.upper() == "POST":
-				# Convert urlencoded bytes back to a dictionary if passed from legacy FEB flow
 				if isinstance(data, bytes):
 					data_str = data.decode('utf-8', errors='ignore')
 					data = dict(urllib.parse.parse_qsl(data_str))
@@ -177,7 +198,6 @@ def fetch_html_content(url, headers=None, data=None, method="GET"):
 		except Exception as e:
 			return None, None, f"Fetch failed: {str(e)}"
 	else:
-		# Fallback to legacy urllib
 		try:
 			req = urllib.request.Request(url, headers=headers, data=data, method=method)
 			with urllib.request.urlopen(req, timeout=12) as response:
