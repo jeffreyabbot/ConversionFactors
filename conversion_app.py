@@ -157,7 +157,7 @@ def fetch_html_content(url, headers=None, data=None, method="GET"):
 	"""
 	HTTP helper. If deployed online and SCRAPERAPI_KEY is found in secrets,
 	routes RealGM requests through ScraperAPI to bypass Cloudflare.
-	Defaults back to direct curl_cffi for local testing or unblocked domains.
+	Gracefully falls back to direct curl_cffi or native urllib if ScraperAPI fails or times out.
 	"""
 	# Safely attempt to read the ScraperAPI key from Streamlit secrets
 	scraperapi_key = None
@@ -167,19 +167,20 @@ def fetch_html_content(url, headers=None, data=None, method="GET"):
 	except Exception:
 		pass
 
-	# Optimization: Only route RealGM through ScraperAPI to save your free monthly credits!
+	# Attempt ScraperAPI routing
 	if scraperapi_key and "realgm.com" in url:
 		encoded_url = urllib.parse.quote(url)
 		api_url = f"http://api.scraperapi.com?api_key={scraperapi_key}&url={encoded_url}"
 		try:
 			req = urllib.request.Request(api_url)
-			with urllib.request.urlopen(req, timeout=20) as response:
+			with urllib.request.urlopen(req, timeout=15) as response:
 				html_text = response.read().decode('utf-8', errors='ignore')
 				return html_text, url, None
 		except Exception as e:
-			return None, None, f"ScraperAPI routing failed: {str(e)}"
+			# Log the warning and gracefully fall through to the direct local fetch block!
+			st.warning(f"⚠️ ScraperAPI timed out or failed ({e}). Attempting direct local fallback...")
 
-	# --- Direct Local Fallback (For local runs, or FEB.es which isn't blocked) ---
+	# --- Direct Local Fallback (For local runs, or if ScraperAPI fails) ---
 	if not headers:
 		headers = {
 			"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
@@ -288,7 +289,21 @@ st.markdown(
 		fill: #FFFFFF !important;
 	}
 	
-	/* Ensure the dropdown menu option lists are dark */
+	/* Ensure modern and legacy dropdown menu option lists have visible white text on a dark background */
+	ul[data-testid="stSelectboxVirtualDropdown"] {
+		background-color: #1E2540 !important;
+	}
+	ul[data-testid="stSelectboxVirtualDropdown"] li[role="option"] {
+		background-color: #1E2540 !important;
+		color: #FFFFFF !important;
+	}
+	ul[data-testid="stSelectboxVirtualDropdown"] li[role="option"]:hover,
+	ul[data-testid="stSelectboxVirtualDropdown"] li[role="option"][aria-selected="true"] {
+		background-color: #3B4B7A !important;
+		color: #FFFFFF !important;
+	}
+	
+	/* Legacy Fallbacks */
 	div[role="listbox"] {
 		background-color: #1E2540 !important;
 	}
