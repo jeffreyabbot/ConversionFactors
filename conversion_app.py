@@ -289,33 +289,48 @@ st.markdown(
 		fill: #FFFFFF !important;
 	}
 	
-	/* Ensure modern and legacy dropdown menu option lists have visible white text on a dark background */
-	ul[data-testid="stSelectboxVirtualDropdown"] {
-		background-color: #1E2540 !important;
-	}
-	ul[data-testid="stSelectboxVirtualDropdown"] li[role="option"] {
-		background-color: #1E2540 !important;
-		color: #FFFFFF !important;
-	}
-	ul[data-testid="stSelectboxVirtualDropdown"] li[role="option"]:hover,
-	ul[data-testid="stSelectboxVirtualDropdown"] li[role="option"][aria-selected="true"] {
-		background-color: #3B4B7A !important;
-		color: #FFFFFF !important;
-	}
+	/* --- UNIVERSAL SELECTBOX PORTAL STYLING (FOR BOTH SIDEBAR & MAIN BODY) --- */
 	
-	/* Legacy Fallbacks */
+	/* 1. Target the background of both modern and legacy virtual dropdown portals */
+	[data-testid="stSelectboxVirtualDropdown"] ul,
+	[data-testid="stSelectboxVirtualDropdown"] div,
+	[data-testid="stVirtualDropdown"] ul,
+	[data-testid="stVirtualDropdown"] div,
 	div[role="listbox"] {
 		background-color: #1E2540 !important;
 	}
+	
+	/* 2. Target the individual options list items */
+	[data-testid="stSelectboxVirtualDropdown"] li,
+	[data-testid="stVirtualDropdown"] li,
 	div[role="listbox"] ul li {
 		background-color: #1E2540 !important;
-		color: #FFFFFF !important;
 	}
-	div[role="listbox"] ul li:hover {
-		background-color: #3B4B7A !important;
+	
+	/* 3. Force all nested text, spans, and labels inside the options to be bright white */
+	[data-testid="stSelectboxVirtualDropdown"] *,
+	[data-testid="stVirtualDropdown"] *,
+	div[role="listbox"] * {
 		color: #FFFFFF !important;
 	}
 	
+	/* 4. Target active, hovered, and selected items */
+	[data-testid="stSelectboxVirtualDropdown"] li:hover,
+	[data-testid="stSelectboxVirtualDropdown"] li[aria-selected="true"],
+	[data-testid="stVirtualDropdown"] li:hover,
+	[data-testid="stVirtualDropdown"] li[aria-selected="true"],
+	div[role="listbox"] ul li:hover {
+		background-color: #3B4B7A !important;
+	}
+	
+	/* Force hovered text to remain white */
+	[data-testid="stSelectboxVirtualDropdown"] li:hover *,
+	[data-testid="stSelectboxVirtualDropdown"] li[aria-selected="true"] *,
+	[data-testid="stVirtualDropdown"] li:hover *,
+	[data-testid="stVirtualDropdown"] li[aria-selected="true"] *,
+	div[role="listbox"] ul li:hover * {
+		color: #FFFFFF !important;
+	}
 	/* Muted Sidebar Captions - High Legibility Gray-Blue */
 	[data-testid="stSidebar"] .stCaptionContainer,
 	[data-testid="stSidebar"] .stCaptionContainer p {
