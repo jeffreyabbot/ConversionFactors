@@ -371,6 +371,8 @@ if "p_height" not in st.session_state:
 	st.session_state.p_height = 185
 if "p_gp" not in st.session_state:
 	st.session_state.p_gp = 26
+if "t_ncaa_conference" not in st.session_state:
+	st.session_state.t_ncaa_conference = "Search Conference..."
 if "manual_parse_error" not in st.session_state:
 	st.session_state.manual_parse_error = ""
 if "manual_parse_success" not in st.session_state:
@@ -694,8 +696,28 @@ def load_scraped_row_into_state(df_row, player_name, height_cm, yob, team_name="
 	if gp_val > 0: st.session_state.t_gp = int(gp_val)
 	
 	st.session_state.t_selected_modifiers = []
-	st.session_state.data_version += 1  # Force data editor refresh
+	
+	# --- AUTOMATIC NCAA CONFERENCE & LEAGUE DETECTION ---
+	# Only execute NCAA-specific auto-detection if the imported row is a college season (has "SCHOOL" column)
+	is_ncaa_row = "SCHOOL" in df_row
+	rgm_profile = st.session_state.get("parsed_player_profile")
+	
+	if is_ncaa_row and rgm_profile and isinstance(rgm_profile, dict):
+		mapped_tier = rgm_profile.get("ncaa_tier")
+		mapped_conf = rgm_profile.get("ncaa_conference")
+		
+		if mapped_tier and mapped_conf:
+			# Automatically set Original League in session state
+			st.session_state.p_orig_league_name = mapped_tier
+			st.session_state.t_orig_league_name = mapped_tier
+			# Set the NCAA Conference Lookup selectbox
+			st.session_state.t_ncaa_conference = mapped_conf
+		else:
+			st.session_state.t_ncaa_conference = "Search Conference..."
+	else:
+		st.session_state.t_ncaa_conference = "Search Conference..."
 
+	st.session_state.data_version += 1  # Force data editor refresh
 def add_to_shortlist_callback(
 	name, orig_team, orig_league, dest_league, position, target_role, calculated_age, height_cm, gp, 
 	raw_stats, proj, total_risk_score, total_context_multiplier, active_modifiers, variability,
@@ -901,6 +923,30 @@ def parse_realgm_row(pasted_text):
 		return stats, gp_val, None
 	except Exception as e:
 		return None, None, f"Mapping failed: {str(e)}"
+def find_ncaa_scouting_tier(scraped_conference):
+	"""
+	Attempts to match raw conference strings from RealGM tables or HTML links
+	(like 'Northeast Conference' or 'Northeast-Conference') against our mapped 
+	NCAA_CONFERENCE_MAPPING keys.
+	"""
+	if not scraped_conference or not isinstance(scraped_conference, str):
+		return None, None
+		
+	# Helper to strip non-alphanumeric chars and lowercase for robust matching
+	def clean(s):
+		return re.sub(r'[^a-zA-Z0-9]', '', s.lower())
+		
+	clean_input = clean(scraped_conference.replace("-", " "))
+	if not clean_input:
+		return None, None
+		
+	for conf_name, tier in NCAA_CONFERENCE_MAPPING.items():
+		clean_mapped = clean(conf_name)
+		# Match if either string contains the other
+		if clean_input in clean_mapped or clean_mapped in clean_input:
+			return tier, conf_name
+			
+	return None, None
 def parse_and_apply_manual_stats():
 	"""
 	Callback function to parse and apply manually pasted RealGM row stats.
@@ -1008,6 +1054,22 @@ def parse_player_summary(url, html_text=None):
 		if born_fallback:
 			yob = int(born_fallback.group(1))
 			
+	# --- AUTOMATED NCAA CONFERENCE EXTRACTION FROM HTML LINKS ---
+	ncaa_conference = None
+	ncaa_tier = None
+	
+	for link in soup.find_all('a', href=re.compile(r'/ncaa/conferences/')):
+		href = link.get('href', '')
+		# Example href: "/ncaa/conferences/Northeast-Conference/27/Le-Moyne/721"
+		match = re.search(r'/ncaa/conferences/([^/]+)/', href)
+		if match:
+			raw_conf = match.group(1).strip()
+			tier, matched_conf = find_ncaa_scouting_tier(raw_conf)
+			if tier and matched_conf:
+				ncaa_conference = matched_conf
+				ncaa_tier = tier
+				break  # Match found, exit loop
+				
 	tables = soup.find_all('table')
 	parsed_tables = []
 	
@@ -1066,7 +1128,9 @@ def parse_player_summary(url, html_text=None):
 	return {
 		"height_cm": height_cm,
 		"yob": yob,
-		"tables": parsed_tables
+		"tables": parsed_tables,
+		"ncaa_conference": ncaa_conference,  # Add this key
+		"ncaa_tier": ncaa_tier              # Add this key
 	}, None
 
 def bs4_to_dataframe(table_element):
@@ -2037,7 +2101,17 @@ else:
 				st.markdown("---")
 				st.markdown("##### NCAA D1 Scouting Lookup")
 				conf_options = ["Search Conference..."] + list(NCAA_CONFERENCE_MAPPING.keys())
-				selected_conf = st.selectbox("Search NCAA Conference:", conf_options)
+				
+				# Resolve the default index dynamically so that programmatic changes are reflected
+				default_conf_idx = conf_options.index(st.session_state.t_ncaa_conference) if st.session_state.get("t_ncaa_conference") in conf_options else 0
+				
+				selected_conf = st.selectbox(
+					"Search NCAA Conference:", 
+					conf_options,
+					index=default_conf_idx,
+					key="t_ncaa_conference"  # <-- Linked to state key
+				)
+				
 				if selected_conf != "Search Conference...":
 					mapped_tier = NCAA_CONFERENCE_MAPPING[selected_conf]
 					st.info(f"Recommended Scouting Setting:\n{mapped_tier}")
