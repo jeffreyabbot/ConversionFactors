@@ -371,6 +371,10 @@ if "p_height" not in st.session_state:
 	st.session_state.p_height = 185
 if "p_gp" not in st.session_state:
 	st.session_state.p_gp = 26
+if "manual_parse_error" not in st.session_state:
+	st.session_state.manual_parse_error = ""
+if "manual_parse_success" not in st.session_state:
+	st.session_state.manual_parse_success = ""
 if "raw_stats" not in st.session_state:
 	st.session_state.raw_stats = {
 		"MIN": 23.5, "PTS": 8.6, "FGM": 2.9, "FGA": 7.1, "FG%": 0.408,
@@ -897,7 +901,27 @@ def parse_realgm_row(pasted_text):
 		return stats, gp_val, None
 	except Exception as e:
 		return None, None, f"Mapping failed: {str(e)}"
-
+def parse_and_apply_manual_stats():
+	"""
+	Callback function to parse and apply manually pasted RealGM row stats.
+	Using a callback prevents StreamlitAPIException by modifying session state 
+	before the widgets are instantiated on rerun.
+	"""
+	pasted_line = st.session_state.get("manual_paste_input", "").strip()
+	if not pasted_line:
+		st.session_state.manual_parse_error = "Please paste a statistics row first."
+		return
+		
+	parsed_stats, parsed_gp, error = parse_realgm_row(pasted_line)
+	if error:
+		st.session_state.manual_parse_error = error
+	else:
+		st.session_state.manual_parse_error = ""
+		st.session_state.raw_stats = parsed_stats
+		st.session_state.p_gp = int(parsed_gp)
+		st.session_state.t_gp = int(parsed_gp)
+		st.session_state.data_version += 1  # Force data editor refresh
+		st.session_state.manual_parse_success = "Successfully parsed and updated active statistics!"
 def search_realgm_players(query):
 	query = query.strip()
 	
@@ -1296,12 +1320,7 @@ def parse_feb_player_profile(url, html_text=None):
 # ==========================================
 # 8. EXACT EXCEL-ALIGNED STATS CONVERSION ENGINE
 # ==========================================
-dest_row = leagues_df[leagues_df["League"] == dest_league_name].iloc[0]
-league_default_var = abs(float(dest_row["T Low"])) if not pd.isna(dest_row["T Low"]) else 0.20
 
-# If the user hasn't manually adjusted the slider, force it to the league default
-if "t_variability" not in st.session_state:
-	st.session_state.p_variability = league_default_var
 def run_projection_engine(
 	raw_stats, origin_league, dest_league, target_role_mod, position, 
 	yob, height, age_mod, height_mod_reb, height_mod_2p,
@@ -1721,6 +1740,39 @@ else:
 	st.session_state.p_position = position  # Lock it into persistent state
 	orig_league_name = st.session_state.get("t_orig_league_name", st.session_state.p_orig_league_name)
 	dest_league_name = st.session_state.get("t_dest_league_name", st.session_state.p_dest_league_name)
+	# Track changes in origin/destination leagues to reset the variability slider dynamically
+	if "prev_orig_league" not in st.session_state:
+		st.session_state.prev_orig_league = orig_league_name
+	if "prev_dest_league" not in st.session_state:
+		st.session_state.prev_dest_league = dest_league_name
+
+	# If either league has changed, reset the default variability
+	if (orig_league_name != st.session_state.prev_orig_league) or (dest_league_name != st.session_state.prev_dest_league):
+		st.session_state.prev_orig_league = orig_league_name
+		st.session_state.prev_dest_league = dest_league_name
+		
+		# Base default variability on the original league (where raw stats come from)
+		orig_row_temp = leagues_df[leagues_df["League"] == orig_league_name].iloc[0]
+		new_default_var = abs(float(orig_row_temp["T Low"])) if "T Low" in orig_row_temp and not pd.isna(orig_row_temp["T Low"]) else 0.20
+		st.session_state.p_variability = new_default_var
+
+	# Resolve the dynamic slider key name based on the current transition
+	slider_key = f"var_slider_{orig_league_name}_{dest_league_name}".replace(" ", "_").replace("(", "").replace(")", "")
+
+	# --- RESOLVE VARIABILITY SAFELY (SCALED FOR INTERNAL MATHEMATICS) ---
+	orig_row_sec10 = leagues_df[leagues_df["League"] == orig_league_name].iloc[0]
+	default_variability = abs(float(orig_row_sec10["T Low"])) if "T Low" in orig_row_sec10 and not pd.isna(orig_row_sec10["T Low"]) else 0.20
+
+	# Initial Load Safeguard
+	if slider_key not in st.session_state and st.session_state.p_variability == 0.20:
+		st.session_state.p_variability = default_variability
+
+	# Read from the dynamic slider key if it exists in session state, otherwise use p_variability
+	if slider_key in st.session_state:
+		variability = float(st.session_state[slider_key]) / 100.0
+	else:
+		variability = float(st.session_state.p_variability)
+	st.session_state.p_variability = variability
 
 	# --- RESOLVE REMAINING CONFIGURATIONS ---
 	target_role = st.session_state.get("t_target_role", st.session_state.p_target_role)
@@ -1730,8 +1782,9 @@ else:
 	orig_team_quality = st.session_state.get("t_orig_team_quality", st.session_state.p_orig_team_quality)
 
 	# --- RESOLVE VARIABILITY SAFELY (SCALED FOR INTERNAL MATHEMATICS) ---
-	dest_row = leagues_df[leagues_df["League"] == dest_league_name].iloc[0]
-	default_variability = abs(float(dest_row["T Low"])) if "T Low" in dest_row and not pd.isna(dest_row["T Low"]) else 0.20
+	# Base default variability on the original league (where raw stats come from)
+	orig_row_sec10 = leagues_df[leagues_df["League"] == orig_league_name].iloc[0]
+	default_variability = abs(float(orig_row_sec10["T Low"])) if "T Low" in orig_row_sec10 and not pd.isna(orig_row_sec10["T Low"]) else 0.20
 
 	if "t_variability_percentage" in st.session_state:
 		variability = float(st.session_state.t_variability_percentage) / 100.0
@@ -1778,6 +1831,12 @@ else:
 			selected_modifiers, target_min, target_role, variability,
 			orig_team_quality
 		)
+  		# Calculate dynamic overall transition confidence (weakest link)
+		cs_map_levels = {"Estimated": 1, "Very Low": 2, "Low": 3, "Medium": 4, "High": 5}
+		orig_cs_num = cs_map_levels.get(orig_league["CS"], 1)
+		dest_cs_num = cs_map_levels.get(dest_league["CS"], 1)
+		overall_cs = orig_league["CS"] if orig_cs_num < dest_cs_num else dest_league["CS"]
+
 		
 		# --- GLOBAL ANALYTICAL CALCULATIONS FOR STATIC ANALYSIS SAFETY ---
 		target_role_label = TARGET_ROLE_CONFIGS.get(target_role, target_role)
@@ -2121,14 +2180,15 @@ else:
 				st.caption(f"Fine-tune model mathematical weights and statistical variability boundaries. Data Confidence Score (CS): **{dest_cs}**.")
 				role_mod_widget = st.slider("Role Multiplier Scale", 0.80, 1.30, step=0.05, key="role_mod")
 				
-				variability_slider_key = f"variability_slider_{dest_league_name}"
+				# Resolve the exact same dynamic key
+				slider_key = f"var_slider_{orig_league_name}_{dest_league_name}".replace(" ", "_").replace("(", "").replace(")", "")
 				variability_slider_val = st.slider(
 					"Statistical Variability (%)", 
 					min_value=5.0, 
 					max_value=30.0, 
 					value=float(st.session_state.p_variability * 100.0), 
 					step=1.0,
-					key="t_variability_percentage"
+					key=slider_key  # <-- Using the dynamic key here!
 				)
 				st.session_state.p_variability = variability_slider_val / 100.0
 		with col_stats:
@@ -2292,18 +2352,17 @@ else:
 					key="manual_paste_input"
 				)
 				
-				if st.button("Parse and Apply Copied Stats"):
-					if pasted_line:
-						parsed_stats, parsed_gp, error = parse_realgm_row(pasted_line)
-						if error:
-							st.error(error)
-						else:
-							st.session_state.raw_stats = parsed_stats
-							st.session_state.p_gp = int(parsed_gp)
-							st.session_state.t_gp = int(parsed_gp)
-							st.session_state.data_version += 1  # Force data editor refresh
-							st.success("Successfully parsed and updated active statistics!")
-							st.rerun()
+				# Link the button to the callback function
+				st.button("Parse and Apply Copied Stats", on_click=parse_and_apply_manual_stats)
+				
+				# Render feedback alerts safely on the next rerun
+				if st.session_state.manual_parse_error:
+					st.error(st.session_state.manual_parse_error)
+					st.session_state.manual_parse_error = ""  # Clear after rendering
+					
+				if st.session_state.manual_parse_success:
+					st.success(st.session_state.manual_parse_success)
+					st.session_state.manual_parse_success = ""  # Clear after rendering
 		if "shooting_debug" in st.session_state:
 			with st.expander("🔬 Shooting Baseline Debugger", expanded=True):
 				st.info(st.session_state.shooting_debug)
@@ -2487,9 +2546,29 @@ else:
 					key=btn_key,
 					on_click=add_to_shortlist_callback,
 					args=(
-						player_name, st.session_state.p_orig_team, orig_league_name, dest_league_name, position, target_role, calculated_age, height, gp, 
-						st.session_state.raw_stats, proj, total_risk_score, total_context_multiplier, selected_modifiers, variability,
-						origin_role_label, target_role_label, conf_percent, conf_factor_str, risk_badge, dest_cs, st_badges_str, stars_str
+						player_name, 
+						st.session_state.p_orig_team, 
+						orig_league_name, 
+						dest_league_name, 
+						position, 
+						target_role, 
+						calculated_age, 
+						height, 
+						gp, 
+						st.session_state.raw_stats, 
+						proj, 
+						total_risk_score, 
+						total_context_multiplier, 
+						selected_modifiers, 
+						variability,
+						origin_role_label, 
+						target_role_label, 
+						conf_percent, 
+						conf_factor_str, 
+						risk_badge, 
+						overall_cs, 
+						st_badges_str, 
+						stars_str
 					)
 				)
 
@@ -2501,11 +2580,9 @@ else:
 				if risk_warnings_list:
 					st.write(f"**Triggered Flags:** `{', '.join(risk_warnings_list)}`")
 				
-				st.write(f"**Data Confidence Rating (CS):** `{dest_cs}`")
+				st.write(f"**Data Confidence Rating (CS):** `{overall_cs}` *({orig_league['CS']} ➔ {dest_league['CS']})*")
 				st.write(f"**Player Badges:** `{st_badges_str}`")
-				st.write(f"**Target Impact Rating:** `{stars_str} (Base VAL: {proj['VAL']})`")
-		
-		# --- AUTO DETECTED RULES SECTION ---
+			st.write(f"**Target Impact Rating:** 📋 Pin to Prospect Shortlist `{stars_str} (Base VAL: {proj['VAL']})`")
 		st.markdown("---")
 		st.subheader("Auto-Detected Context Rules")
 		
