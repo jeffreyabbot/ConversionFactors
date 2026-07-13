@@ -2553,6 +2553,15 @@ else:
 		)
 
 		st.markdown("---")
+		
+		# Dynamic Small Sample Warning
+		if gp < 8:
+			st.warning(
+				f"⚠️ **Small Sample Size Alert ({gp} GP):** This baseline is built on a very limited number of games. "
+				f"While the system has automatically disabled shooting badges to prevent noise, the overall "
+				f"projections carry higher intrinsic volatility and should be evaluated with caution."
+			)
+			
 		st.info("💡 Scouting Tip: Projections are statistically independent. Each metric is evaluated on its own independent range.")
 	# ----------------- TAB 3: CONTEXT RULES & WARNINGS -----------------
 	with tab_rules_warnings:
