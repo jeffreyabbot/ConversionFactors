@@ -1876,10 +1876,20 @@ else:
 		elif min_cs_val == 3: val_cs = "Low"
 		else: val_cs = "High"
 		
-		three_pct = st.session_state.raw_stats.get("3P%", 0)
-		ft_pct = st.session_state.raw_stats.get("FT%", 0)
-		is_fluke = three_pct > 0.38 and ft_pct < 0.65
-		is_gem = three_pct < 0.32 and ft_pct > 0.82
+		three_pct = st.session_state.raw_stats.get("3P%", 0.0)
+		ft_pct = st.session_state.raw_stats.get("FT%", 0.0)
+		three_att = st.session_state.raw_stats.get("3PA", 0.0)
+		ft_att = st.session_state.raw_stats.get("FTA", 0.0)
+		
+		# Calculate actual cumulative attempts over the played games
+		total_3pa = three_att * gp
+		total_fta = ft_att * gp
+		
+		# Establish statistical significance thresholds (e.g., 15+ total attempts & 8+ games)
+		has_shooting_volume = (total_3pa >= 15.0) and (total_fta >= 15.0) and (gp >= 8)
+		
+		is_fluke = has_shooting_volume and (three_pct > 0.38) and (ft_pct < 0.65)
+		is_gem = has_shooting_volume and (three_pct < 0.32) and (ft_pct > 0.82)
 		
 		risk_foul = 1.0 if pf_per_40 > 5.5 else 0.0
 		risk_size = 1.0 if (rebound_height_modifier < 1.0 or derived_height_mod_2p < 1.0) else 0.0
@@ -2618,10 +2628,10 @@ else:
 			st.success("Dynamic Rule - Winning System: Player comes from a top team. Positively contextualizes efficiency.")
 			warnings += 1
 
-		if three_pct > 0.38 and ft_pct < 0.65:
+		if is_fluke:
 			st.warning(f"Shooting Fluke Matrix: High 3P% ({three_pct*100:.1f}%) but poor FT% ({ft_pct*100:.1f}%). 3P% is likely unsustainable (+1.5 Risk).")
 			warnings += 1
-		elif three_pct < 0.32 and ft_pct > 0.82:
+		elif is_gem:
 			st.success(f"Hidden Gem Found: Low 3P% ({three_pct*100:.1f}%) but elite FT% ({ft_pct*100:.1f}%). 3P% is highly likely to improve (-0.5 Risk).")
 			warnings += 1
 
