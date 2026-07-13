@@ -1433,8 +1433,23 @@ def run_projection_engine(
 
 	# --- STEP 5: SHOOTING ---
 	two_p_diff = (origin_league["2P% Modifier"] / dest_league["2P% Modifier"]) ** 0.5
+	
+	# Calculate the actual raw 2P% from total FGM/FGA and 3PM/3PA to avoid drag from 3-pointers
+	fg_makes = raw_stats.get("FGM", 0.0)
+	fg_attempts = raw_stats.get("FGA", 0.0)
+	three_makes = raw_stats.get("3PM", 0.0)
+	three_attempts = raw_stats.get("3PA", 0.0)
+	
+	two_makes = fg_makes - three_makes
+	two_attempts = fg_attempts - three_attempts
+	
+	if two_attempts > 0:
+		raw_2p = two_makes / two_attempts
+	else:
+		raw_2p = raw_stats.get("FG%", 0.0)  # Fallback to total FG% if no attempts are recorded
+		
 	# MULTIPLYING THE HEIGHT PENALTY INTO 2P%
-	f_2p = raw_stats["FG%"] * two_p_diff * derived_height_mod_2p
+	f_2p = raw_2p * two_p_diff * derived_height_mod_2p
 	f_3p = raw_stats["3P%"] * (origin_league["3P% Modifier"] / dest_league["3P% Modifier"])
 
 	# --- STEP 6: CEILING BONUSES ---
