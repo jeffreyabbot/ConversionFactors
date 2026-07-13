@@ -1939,12 +1939,21 @@ else:
 			
 		# Dynamic Badges Engine
 		badges = []
-		if proj.get("3P%", 0) > 0.37 and proj.get("proj_3pa", 0) > 4.0:
+		
+		# 1. 🎯 Sniper (Relaxed FIBA-aligned criteria: 36% efficiency and 3.5 attempts per game)
+		if proj.get("3P%", 0) >= 0.36 and proj.get("proj_3pa", 0) >= 3.5:
 			badges.append("🎯 Sniper")
-		if proj.get("FT%", 0) > 0.80:
+			
+		# Define FT volume threshold to protect against small-sample-size noise (15+ total FTA & 8+ GP)
+		has_ft_volume = (total_fta >= 15.0) and (gp >= 8)
+		
+		# 2. Free Throw Badges (Guarded by volume)
+		if has_ft_volume and proj.get("FT%", 0) > 0.80:
 			badges.append("🧊 Ice Cold FT")
-		if proj.get("FT%", 0) < 0.50:
+		if has_ft_volume and proj.get("FT%", 0) < 0.50:
 			badges.append("🧱 FT Liability")
+			
+		# 3. Projected Volume-based Badges (Safe by design as they scale with minutes/pace)
 		if proj.get("BLK", 0) > 0.8:
 			badges.append("🛡️ Rim Protector")
 		if proj.get("AS", 0) > 3.5:
@@ -1955,11 +1964,10 @@ else:
 			badges.append("💪 Glass Cleaner")
 		if proj.get("OR", 0) > 2.0:
 			badges.append("🐗 Offensive Rebounder")
-		if proj.get("2P%", 0) > 0.55 and proj.get("3P%", 0) > 0.35:
+			
+		# 4. ✅ Efficient (Guarded by shooting volume to prevent small-sample-size anomalies)
+		if has_shooting_volume and proj.get("2P%", 0) > 0.55 and proj.get("3P%", 0) > 0.35:
 			badges.append("✅ Efficient")
-		
-		st_badges_str = ", ".join(badges) if badges else "None"
-		stars_str = "🌟" * min(5, max(1, int(proj["VAL"] / 4)))
 		
 	except Exception as e:
 		st.error(f"Calculation Error: {e}")
