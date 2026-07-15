@@ -1725,7 +1725,7 @@ with st.sidebar:
 			file_name="ingame_prospect_shortlist.csv",
 			mime="text/csv",
 			key="export_shortlist_csv",
-			width="stretch"
+			use_container_width=True  # <-- Updated here
 		)
 		
 		# Use on-click callback for safe state preservation on manual reset
@@ -1733,7 +1733,7 @@ with st.sidebar:
 			"Clear Shortlist", 
 			key="clear_shortlist_btn", 
 			on_click=clear_shortlist_callback, 
-			width="stretch"
+			use_container_width=True  # <-- Updated here
 		)
 	else:
 		st.markdown(
