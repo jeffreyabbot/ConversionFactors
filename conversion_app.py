@@ -700,18 +700,22 @@ def load_scraped_row_into_state(df_row, player_name, height_cm, yob, team_name="
 	# --- AUTOMATIC NCAA CONFERENCE & LEAGUE DETECTION ---
 	# Only execute NCAA-specific auto-detection if the imported row is a college season (has "SCHOOL" column)
 	is_ncaa_row = "SCHOOL" in df_row
-	rgm_profile = st.session_state.get("parsed_player_profile")
+	scraped_link = df_row.get("NCAA_CONF_LINK", "")
 	
-	if is_ncaa_row and rgm_profile and isinstance(rgm_profile, dict):
-		mapped_tier = rgm_profile.get("ncaa_tier")
-		mapped_conf = rgm_profile.get("ncaa_conference")
-		
-		if mapped_tier and mapped_conf:
-			# Automatically set Original League in session state
-			st.session_state.p_orig_league_name = mapped_tier
-			st.session_state.t_orig_league_name = mapped_tier
-			# Set the NCAA Conference Lookup selectbox
-			st.session_state.t_ncaa_conference = mapped_conf
+	if is_ncaa_row and scraped_link:
+		match = re.search(r'/ncaa/conferences/([^/]+)/', scraped_link)
+		if match:
+			raw_conf = match.group(1).strip()
+			mapped_tier, mapped_conf = find_ncaa_scouting_tier(raw_conf)
+			
+			if mapped_tier and mapped_conf:
+				# Automatically set Original League in session state
+				st.session_state.p_orig_league_name = mapped_tier
+				st.session_state.t_orig_league_name = mapped_tier
+				# Set the NCAA Conference Lookup selectbox
+				st.session_state.t_ncaa_conference = mapped_conf
+			else:
+				st.session_state.t_ncaa_conference = "Search Conference..."
 		else:
 			st.session_state.t_ncaa_conference = "Search Conference..."
 	else:
@@ -1098,6 +1102,32 @@ def parse_player_summary(url, html_text=None):
 			if "SEASON" in df.columns:
 				df = df[~df["SEASON"].astype(str).str.contains("Career|Total|Overall|All-Star", case=False, na=False)]
 				
+			# --- EXTRACT NCAA CONFERENCE LINKS ROW-BY-ROW ---
+			row_conf_links = []
+			tbody = table.find('tbody')
+			tr_elements = tbody.find_all('tr') if tbody else table.find_all('tr')
+			
+			for tr in tr_elements:
+				# Skip header rows
+				if tr.find('th'):
+					continue
+				tr_text = tr.get_text()
+				# Skip Career/Totals rows to match the filtered DataFrame
+				if any(x in tr_text for x in ["Career", "Total", "Overall", "All-Star", "Totals"]):
+					continue
+				
+				# Find the first ncaa conference link in this specific row
+				link = tr.find('a', href=re.compile(r'/ncaa/conferences/'))
+				href_val = link.get('href', '') if link else ""
+				row_conf_links.append(href_val)
+				
+			# Match the row count of df and append links as a column
+			if len(row_conf_links) == len(df):
+				df["NCAA_CONF_LINK"] = row_conf_links
+			else:
+				# Fallback slicing/padding if counts mismatch
+				df["NCAA_CONF_LINK"] = row_conf_links[:len(df)] + [""] * (len(df) - len(row_conf_links))
+				
 			parsed_tables.append({
 				"name": heading_text,
 				"df": df
@@ -1128,9 +1158,7 @@ def parse_player_summary(url, html_text=None):
 	return {
 		"height_cm": height_cm,
 		"yob": yob,
-		"tables": parsed_tables,
-		"ncaa_conference": ncaa_conference,  # Add this key
-		"ncaa_tier": ncaa_tier              # Add this key
+		"tables": parsed_tables
 	}, None
 
 def bs4_to_dataframe(table_element):
