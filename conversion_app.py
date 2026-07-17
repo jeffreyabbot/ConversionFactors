@@ -416,6 +416,7 @@ if "data_version" not in st.session_state:
 # 3. RAW LEAGUE DATASET
 # ==========================================
 RAW_LEAGUE_DATA = """League	Tier	Rate	Bigs (C/PF)	Shooters (SG/SF)	Slashers / D(Non-Shooters)	Slashers/PGs	Rebounds	2P% Modifier	3P% Modifier	TO Modifier	CS	T High	T Low	Pace	Pace Factor	STL Modifier	BLK Modifier
+Adriatic League (ABA)	2	1,46	1,65	1,55	1,60	1,60	1,10	1,08	1,08	0,85	High	-0,05	0,05	74,00	1,01	1,10	1,10
 Angola UNITEL	6	0,70	0,75	0,70	0,70	0,75	0,75	0,85	0,90	1,15	Estimated	-0,25	0,25	74,00	1,01	0,90	0,90
 Argentina LNB	4	1,09	1,10	1,15	1,15	1,10	1,05	1,05	1,00	1,00	Medium	-0,10	0,10	71,50	1,05	1,05	1,00
 Australia NBL	3	1,24	1,40	1,35	1,40	1,30	1,05	1,15	1,05	0,85	Very Low	-0,20	0,20	82,00	0,91	0,90	0,95
@@ -2556,6 +2557,14 @@ else:
 			mod_strings.append("Defensive Glue (Role Mult forced to 1.00)")
 		
 		mods_display = " | ".join(mod_strings) if mod_strings else "None Active"
+		# --- DYNAMIC STYLING FOR DIAGNOSTIC VALUES ---
+		# Highlight active height penalties in red; keep neutral 1.00 values in subtle gray
+		reb_penalty_active = rebound_height_modifier < 1.0
+		twop_penalty_active = derived_height_mod_2p < 1.0
+		
+		reb_badge_style = "color: #E63946; font-weight: bold;" if reb_penalty_active else "color: #4B5563; font-weight: normal;"
+		twop_badge_style = "color: #E63946; font-weight: bold;" if twop_penalty_active else "color: #4B5563; font-weight: normal;"
+		
 		# Render the CSS Grid diagnostic card (with 4-column transition profile)
 		st.markdown(
 			f"""
@@ -2569,12 +2578,15 @@ else:
 					<div>
 						<b style="color:#11152C; font-size: 13px;">🏀 Rebound Scaling:</b><br/>
 						• Total Rebound Mult: <code style="color:#E63946; font-weight:bold;">x{display_reb_mult * rebound_height_modifier:.2f}</code><br/>
-						<span style="color:#4B5563; font-size: 11px;">(League: {league_reb_ratio:.2f} * Pos: {pos_reb_adj:.2f} * Size: {rebound_height_modifier:.2f})</span>
+						<span style="color:#4B5563; font-size: 11px;">
+							(League: {league_reb_ratio:.2f} * Pos: {pos_reb_adj:.2f} * 
+							<span style="{reb_badge_style}">Size: {rebound_height_modifier:.2f}</span>)
+						</span>
 					</div>
 					<div>
-						<b style="color:#11152C; font-size: 13px;">📏 Physical Sizing Scaling:</b><br/>
-						• Rebound Modifier: <code style="color:#E63946; font-weight:bold;">x{rebound_height_modifier:.2f}</code><br/>
-						• 2P% Modifier: <code style="color:#E63946; font-weight:bold;">x{derived_height_mod_2p:.2f}</code>
+						<b style="color:#11152C; font-size: 13px;">📏 Physical Sizing Limits:</b><br/>
+						• Rebound Penalty (Factored in Rebound Scaling): <code style="{reb_badge_style}">x{rebound_height_modifier:.2f}</code><br/>
+						• 2P% Penalty (Factored in 2P%): <code style="{twop_badge_style}">x{derived_height_mod_2p:.2f}</code>
 					</div>
 					<div>
 						<b style="color:#11152C; font-size: 13px;">🔄 Transition Profile:</b><br/>
