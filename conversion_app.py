@@ -1104,75 +1104,103 @@ def parse_and_apply_manual_stats():
 		st.session_state.t_gp = int(parsed_gp)
 		st.session_state.data_version += 1  # Force data editor refresh
 		st.session_state.manual_parse_success = "Successfully parsed and updated active statistics!"
+  
 @st.cache_data(ttl=3600, show_spinner=False)
+def _cached_realgm_get(url):
+	html_text, final_url, err = fetch_html_content(url)
+	if err or not html_text:
+		raise RuntimeError(err or "Empty response")
+	return html_text, final_url
+
+@st.cache_data(ttl=3600, show_spinner=False)
+def _cached_realgm_get(url):
+	html_text, final_url, err = fetch_html_content(url)
+	if err or not html_text:
+		raise RuntimeError(err or "Empty response")
+	return html_text, final_url
+
 def search_realgm_players(query):
-    query = query.strip()
-    if query.startswith("http") and "realgm.com/player/" in query and "/Summary/" in query:
-        return {"direct_match": True, "url": query, "html": None}, None
+	query = query.strip()
 
-    tokens = strip_accents(query).split()
-    seen = set()
-    unique_tokens = []
-    for t in tokens:
-        if t.lower() not in seen:
-            seen.add(t.lower())
-            unique_tokens.append(t)
-    clean_query = " ".join(unique_tokens)
+	if query.startswith("http") and "realgm.com/player/" in query and "/Summary/" in query:
+		return {"direct_match": True, "url": query, "html": None}, None
 
-    encoded_query = urllib.parse.quote(clean_query)
-    url = f"https://basketball.realgm.com/search?q={encoded_query}"
+	tokens = strip_accents(query).split()
+	seen = set()
+	unique_tokens = []
+	for t in tokens:
+		if t.lower() not in seen:
+			seen.add(t.lower())
+			unique_tokens.append(t)
+	clean_query = " ".join(unique_tokens)
 
-    html_text, final_url, err = fetch_html_content(url)
-    if err:
-        return None, f"Failed to connect to RealGM ({err})"
+	encoded_query = urllib.parse.quote(clean_query)
+	url = f"https://basketball.realgm.com/search?q={encoded_query}"
 
-    if ("/player/" in final_url and "/Summary/" in final_url) or ('class="profile-box"' in html_text):
-        return {"direct_match": True, "url": final_url, "html": html_text}, None
+	try:
+		html_text, final_url = _cached_realgm_get(url)
+	except Exception as e:
+		return None, f"Failed to connect to RealGM ({e})"
 
-    soup = BeautifulSoup(html_text, 'html.parser')
-    results = []
-    for link in soup.find_all('a', href=re.compile(r'/player/[^/]+/Summary/\d+')):
-        href = link.get('href')
-        full_url = f"https://basketball.realgm.com{href}"
-        name = link.get_text().strip()
-        parent_row = link.find_parent('tr')
-        details = ""
-        if parent_row:
-            cells = [td.get_text().strip() for td in parent_row.find_all('td')]
-            if len(cells) > 1:
-                details = " | ".join([c for c in cells if c and c != name])
-        results.append({"name": name, "url": full_url, "details": details or "Player Summary Profile"})
+	if ("/player/" in final_url and "/Summary/" in final_url) or ('class="profile-box"' in html_text):
+		return {"direct_match": True, "url": final_url, "html": html_text}, None
 
-    if not results:
-        return None, "No matching players found on RealGM. Check spelling or paste the direct RealGM player URL."
+	soup = BeautifulSoup(html_text, 'html.parser')
+	results = []
 
-    seen_urls = set()
-    unique_results = []
-    for r in results:
-        if r["url"] not in seen_urls:
-            seen_urls.add(r["url"])
-            unique_results.append(r)
+	for link in soup.find_all('a', href=re.compile(r'/player/[^/]+/Summary/\d+')):
+		href = link.get('href')
+		full_url = f"https://basketball.realgm.com{href}"
+		name = link.get_text().strip()
 
-    return {"direct_match": False, "results": unique_results}, None
-@st.cache_data(ttl=3600, show_spinner=False)
+		parent_row = link.find_parent('tr')
+		details = ""
+		if parent_row:
+			cells = [td.get_text().strip() for td in parent_row.find_all('td')]
+			if len(cells) > 1:
+				details = " | ".join([c for c in cells if c and c != name])
+
+		results.append({
+			"name": name,
+			"url": full_url,
+			"details": details if details else "Player Summary Profile"
+		})
+
+	if not results:
+		return None, "No matching players found on RealGM. Check spelling or paste the direct RealGM player URL."
+
+	seen_urls = set()
+	unique_results = []
+	for r in results:
+		if r["url"] not in seen_urls:
+			seen_urls.add(r["url"])
+			unique_results.append(r)
+
+	return {"direct_match": False, "results": unique_results}, None
+
 def parse_player_summary(url, html_text=None):
 	if not html_text:
-		html_text, _, err = fetch_html_content(url)
-		if err:
-			return None, f"Failed to load player profile (Error: {err})"
-			
+		try:
+			html_text, _ = _cached_realgm_get(url)
+		except Exception as e:
+			return None, f"Failed to load player profile ({e})"
+
 	soup = BeautifulSoup(html_text, 'html.parser')
-	
+
+	scraped_name = None
+	if soup.title and "Player Profile" in soup.title.get_text():
+		scraped_name = soup.title.get_text().split(" Player Profile")[0].strip()
+
 	height_cm = None
 	yob = None
-	
+
 	profile_div = soup.find('div', class_='profile-box') or soup.find('p', class_='player-bio') or soup
 	profile_text = profile_div.get_text()
-	
+
 	height_match = re.search(r'\((\d{3})cm\)', profile_text)
 	if height_match:
 		height_cm = int(height_match.group(1))
-		
+
 	born_match = re.search(r'Born:\s+[A-Za-z]{3}\s+\d{1,2},\s+(\d{4})', profile_text)
 	if born_match:
 		yob = int(born_match.group(1))
@@ -1180,26 +1208,10 @@ def parse_player_summary(url, html_text=None):
 		born_fallback = re.search(r'Born:.*?(\d{4})', profile_text)
 		if born_fallback:
 			yob = int(born_fallback.group(1))
-			
-	# --- AUTOMATED NCAA CONFERENCE EXTRACTION FROM HTML LINKS ---
-	ncaa_conference = None
-	ncaa_tier = None
-	
-	for link in soup.find_all('a', href=re.compile(r'/ncaa/conferences/')):
-		href = link.get('href', '')
-		# Example href: "/ncaa/conferences/Northeast-Conference/27/Le-Moyne/721"
-		match = re.search(r'/ncaa/conferences/([^/]+)/', href)
-		if match:
-			raw_conf = match.group(1).strip()
-			tier, matched_conf = find_ncaa_scouting_tier(raw_conf)
-			if tier and matched_conf:
-				ncaa_conference = matched_conf
-				ncaa_tier = tier
-				break  # Match found, exit loop
-				
+
 	tables = soup.find_all('table')
 	parsed_tables = []
-	
+
 	for idx, table in enumerate(tables):
 		heading_text = f"Table {idx + 1}"
 		prev_node = table.find_previous()
@@ -1210,62 +1222,52 @@ def parse_player_summary(url, html_text=None):
 			if prev_node.name == 'body':
 				break
 			prev_node = prev_node.find_previous()
-			
+
 		try:
 			df_list = pd.read_html(io.StringIO(str(table)))
 			if not df_list:
 				continue
 			df = df_list[0]
 			df.columns = [str(c).strip().upper() for c in df.columns]
-			
+
 			required_cols = {"MIN", "PTS", "FGA", "FTA"}
 			if not required_cols.issubset(set(df.columns)):
 				continue
-				
+
 			if "SEASON" in df.columns:
 				df = df[~df["SEASON"].astype(str).str.contains("Career|Total|Overall|All-Star", case=False, na=False)]
-				
-			# --- EXTRACT NCAA CONFERENCE LINKS ROW-BY-ROW ---
+
 			row_conf_links = []
 			tbody = table.find('tbody')
 			tr_elements = tbody.find_all('tr') if tbody else table.find_all('tr')
-			
+
 			for tr in tr_elements:
-				# Skip header rows
 				if tr.find('th'):
 					continue
 				tr_text = tr.get_text()
-				# Skip Career/Totals rows to match the filtered DataFrame
 				if any(x in tr_text for x in ["Career", "Total", "Overall", "All-Star", "Totals"]):
 					continue
-				
-				# Find the first ncaa conference link in this specific row
 				link = tr.find('a', href=re.compile(r'/ncaa/conferences/'))
 				href_val = link.get('href', '') if link else ""
 				row_conf_links.append(href_val)
-				
-			# Match the row count of df and append links as a column
+
 			if len(row_conf_links) == len(df):
 				df["NCAA_CONF_LINK"] = row_conf_links
 			else:
-				# Fallback slicing/padding if counts mismatch
 				df["NCAA_CONF_LINK"] = row_conf_links[:len(df)] + [""] * (len(df) - len(row_conf_links))
-				
-			parsed_tables.append({
-				"name": heading_text,
-				"df": df
-			})
+
+			parsed_tables.append({"name": heading_text, "df": df})
 		except Exception:
 			continue
-			
+
 	if not parsed_tables:
 		return None, "No valid averages tables found on this player profile."
-		
+
 	name_counts = {}
 	for t in parsed_tables:
 		name = t["name"]
 		name_counts[name] = name_counts.get(name, 0) + 1
-		
+
 	seen_counts = {}
 	for t in parsed_tables:
 		name = t["name"]
@@ -1277,13 +1279,13 @@ def parse_player_summary(url, html_text=None):
 				t["name"] = f"{name} - Totals"
 			else:
 				t["name"] = f"{name} - Table {seen_counts[name]}"
-				
+
 	return {
+		"player_name": scraped_name,
 		"height_cm": height_cm,
 		"yob": yob,
 		"tables": parsed_tables
 	}, None
-
 def bs4_to_dataframe(table_element):
 	tr_elements = table_element.find_all('tr')
 	parsed_rows = []
