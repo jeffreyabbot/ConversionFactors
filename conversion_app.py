@@ -43,97 +43,97 @@ stats = {}
 # ==========================================
 
 def wilson_eb_interval(curr_m, curr_a, hist_m, hist_a, prior_pct, prior_weight, z=1.645):
-    """
-    Pools current season (1.0x weight) + career history (0.65x weight) using actual shot counts,
-    shrinks tiny samples toward prior_pct (Empirical Bayes), and returns a 90% Wilson CI (z=1.645).
-    Returns: (base_pct, floor_pct, ceil_pct, effective_attempts)
-    """
-    eff_m = max(0.0, curr_m + 0.65 * hist_m)
-    eff_a = max(0.0, curr_a + 0.65 * hist_a)
+	"""
+	Pools current season (1.0x weight) + career history (0.65x weight) using actual shot counts,
+	shrinks tiny samples toward prior_pct (Empirical Bayes), and returns a 90% Wilson CI (z=1.645).
+	Returns: (base_pct, floor_pct, ceil_pct, effective_attempts)
+	"""
+	eff_m = max(0.0, curr_m + 0.65 * hist_m)
+	eff_a = max(0.0, curr_a + 0.65 * hist_a)
 
-    if eff_a <= 0:
-        return prior_pct, max(0.0, prior_pct - 0.12), min(1.0, prior_pct + 0.12), 0
+	if eff_a <= 0:
+		return prior_pct, max(0.0, prior_pct - 0.12), min(1.0, prior_pct + 0.12), 0
 
-    base_p = (eff_m + prior_weight * prior_pct) / (eff_a + prior_weight)
-    n = eff_a + 0.5 * prior_weight
-    denom = 1.0 + (z ** 2) / n
-    center = (base_p + (z ** 2) / (2.0 * n)) / denom
-    half_w = (z * math.sqrt((base_p * (1.0 - base_p) + (z ** 2) / (4.0 * n)) / n)) / denom
+	base_p = (eff_m + prior_weight * prior_pct) / (eff_a + prior_weight)
+	n = eff_a + 0.5 * prior_weight
+	denom = 1.0 + (z ** 2) / n
+	center = (base_p + (z ** 2) / (2.0 * n)) / denom
+	half_w = (z * math.sqrt((base_p * (1.0 - base_p) + (z ** 2) / (4.0 * n)) / n)) / denom
 
-    return (
-        round(base_p, 4),
-        round(max(0.0, center - half_w), 4),
-        round(min(1.0, center + half_w), 4),
-        int(round(eff_a))
-    )
+	return (
+		round(base_p, 4),
+		round(max(0.0, center - half_w), 4),
+		round(min(1.0, center + half_w), 4),
+		int(round(eff_a))
+	)
 
 def calculate_career_shooting_ci(history, current_stats, gp, source="Manual", skip_label=None):
-    """
-    Computes Empirical Bayes + 90% Wilson Confidence Intervals for 2P%, 3P%, and FT%.
-    current_stats holds PER-GAME values, so they are multiplied by gp to get true attempt counts.
-    """
-    gp_val = max(1.0, float(gp))
-    curr_fgm = current_stats.get("FGM", 0.0) * gp_val
-    curr_fga = current_stats.get("FGA", 0.0) * gp_val
-    curr_3pm = current_stats.get("3PM", 0.0) * gp_val
-    curr_3pa = current_stats.get("3PA", 0.0) * gp_val
-    curr_2pm = max(0.0, curr_fgm - curr_3pm)
-    curr_2pa = max(0.0, curr_fga - curr_3pa)
-    curr_ftm = current_stats.get("FTM", 0.0) * gp_val
-    curr_fta = current_stats.get("FTA", 0.0) * gp_val
+	"""
+	Computes Empirical Bayes + 90% Wilson Confidence Intervals for 2P%, 3P%, and FT%.
+	current_stats holds PER-GAME values, so they are multiplied by gp to get true attempt counts.
+	"""
+	gp_val = max(1.0, float(gp))
+	curr_fgm = current_stats.get("FGM", 0.0) * gp_val
+	curr_fga = current_stats.get("FGA", 0.0) * gp_val
+	curr_3pm = current_stats.get("3PM", 0.0) * gp_val
+	curr_3pa = current_stats.get("3PA", 0.0) * gp_val
+	curr_2pm = max(0.0, curr_fgm - curr_3pm)
+	curr_2pa = max(0.0, curr_fga - curr_3pa)
+	curr_ftm = current_stats.get("FTM", 0.0) * gp_val
+	curr_fta = current_stats.get("FTA", 0.0) * gp_val
 
-    hist_2pm = hist_2pa = hist_3pm = hist_3pa = hist_ftm = hist_fta = 0.0
-    seasons_counted = 0
+	hist_2pm = hist_2pa = hist_3pm = hist_3pa = hist_ftm = hist_fta = 0.0
+	seasons_counted = 0
 
-    if history and source == "FEB":
-        for row in history:
-            if skip_label and row.get("label") == skip_label:
-                continue
-            s = row.get("stats", {})
-            m2, a2 = split_stat(s.get("T2", "0/0"))
-            m3, a3 = split_stat(s.get("T3", "0/0"))
-            mft, aft = split_stat(s.get("TL", "0/0"))
-            if (a2 + a3 + aft) == 0:
-                continue
-            hist_2pm += m2; hist_2pa += a2
-            hist_3pm += m3; hist_3pa += a3
-            hist_ftm += mft; hist_fta += aft
-            seasons_counted += 1
+	if history and source == "FEB":
+		for row in history:
+			if skip_label and row.get("label") == skip_label:
+				continue
+			s = row.get("stats", {})
+			m2, a2 = split_stat(s.get("T2", "0/0"))
+			m3, a3 = split_stat(s.get("T3", "0/0"))
+			mft, aft = split_stat(s.get("TL", "0/0"))
+			if (a2 + a3 + aft) == 0:
+				continue
+			hist_2pm += m2; hist_2pa += a2
+			hist_3pm += m3; hist_3pa += a3
+			hist_ftm += mft; hist_fta += aft
+			seasons_counted += 1
 
-    elif history and source == "RealGM":
-        for row in history:
-            row_season = str(row.get("SEASON", row.get("YEAR", ""))).strip()
-            row_team = str(row.get("TEAM", row.get("SCHOOL", ""))).strip()
-            if skip_label and (row_season, row_team) == skip_label:
-                continue
-            fga = clean_num(row.get("FGA", 0))
-            if fga < 15:
-                continue
-            fgm = clean_num(row.get("FGM", row.get("FG", 0)))
-            m3 = clean_num(row.get("3PM", row.get("3FG", 0)))
-            a3 = clean_num(row.get("3PA", row.get("3FGA", 0)))
-            mft = clean_num(row.get("FTM", row.get("FT", 0)))
-            aft = clean_num(row.get("FTA", 0))
-            hist_2pm += max(0.0, fgm - m3); hist_2pa += max(0.0, fga - a3)
-            hist_3pm += m3; hist_3pa += a3
-            hist_ftm += mft; hist_fta += aft
-            seasons_counted += 1
+	elif history and source == "RealGM":
+		for row in history:
+			row_season = str(row.get("SEASON", row.get("YEAR", ""))).strip()
+			row_team = str(row.get("TEAM", row.get("SCHOOL", ""))).strip()
+			if skip_label and (row_season, row_team) == skip_label:
+				continue
+			fga = clean_num(row.get("FGA", 0))
+			if fga < 15:
+				continue
+			fgm = clean_num(row.get("FGM", row.get("FG", 0)))
+			m3 = clean_num(row.get("3PM", row.get("3FG", 0)))
+			a3 = clean_num(row.get("3PA", row.get("3FGA", 0)))
+			mft = clean_num(row.get("FTM", row.get("FT", 0)))
+			aft = clean_num(row.get("FTA", 0))
+			hist_2pm += max(0.0, fgm - m3); hist_2pa += max(0.0, fga - a3)
+			hist_3pm += m3; hist_3pa += a3
+			hist_ftm += mft; hist_fta += aft
+			seasons_counted += 1
 
-    ci_2p = wilson_eb_interval(curr_2pm, curr_2pa, hist_2pm, hist_2pa, prior_pct=0.50, prior_weight=45.0)
-    ci_3p = wilson_eb_interval(curr_3pm, curr_3pa, hist_3pm, hist_3pa, prior_pct=0.33, prior_weight=40.0)
-    ci_ft = wilson_eb_interval(curr_ftm, curr_fta, hist_ftm, hist_fta, prior_pct=0.73, prior_weight=30.0)
+	ci_2p = wilson_eb_interval(curr_2pm, curr_2pa, hist_2pm, hist_2pa, prior_pct=0.50, prior_weight=45.0)
+	ci_3p = wilson_eb_interval(curr_3pm, curr_3pa, hist_3pm, hist_3pa, prior_pct=0.33, prior_weight=40.0)
+	ci_ft = wilson_eb_interval(curr_ftm, curr_fta, hist_ftm, hist_fta, prior_pct=0.73, prior_weight=30.0)
 
-    return {
-        "2P": ci_2p,
-        "3P": ci_3p,
-        "FT": ci_ft,
-        "debug": (
-            f"Source: {source} ({seasons_counted} prior rows) | "
-            f"2P: {ci_2p[0]:.1%} [{ci_2p[1]:.1%}–{ci_2p[2]:.1%}] (n_eff={ci_2p[3]}) | "
-            f"3P: {ci_3p[0]:.1%} [{ci_3p[1]:.1%}–{ci_3p[2]:.1%}] (n_eff={ci_3p[3]}) | "
-            f"FT: {ci_ft[0]:.1%} [{ci_ft[1]:.1%}–{ci_ft[2]:.1%}] (n_eff={ci_ft[3]})"
-        )
-    }
+	return {
+		"2P": ci_2p,
+		"3P": ci_3p,
+		"FT": ci_ft,
+		"debug": (
+			f"Source: {source} ({seasons_counted} prior rows) | "
+			f"2P: {ci_2p[0]:.1%} [{ci_2p[1]:.1%}–{ci_2p[2]:.1%}] (n_eff={ci_2p[3]}) | "
+			f"3P: {ci_3p[0]:.1%} [{ci_3p[1]:.1%}–{ci_3p[2]:.1%}] (n_eff={ci_3p[3]}) | "
+			f"FT: {ci_ft[0]:.1%} [{ci_ft[1]:.1%}–{ci_ft[2]:.1%}] (n_eff={ci_ft[3]})"
+		)
+	}
 # =====================
 # GLOBAL STYLING HELPER
 # =====================
@@ -191,49 +191,49 @@ def highlight_scouting_outliers(row):
 import unicodedata
 
 def strip_accents(text):
-    return "".join(
-        c for c in unicodedata.normalize("NFKD", text)
-        if not unicodedata.combining(c)
-    )
+	return "".join(
+		c for c in unicodedata.normalize("NFKD", text)
+		if not unicodedata.combining(c)
+	)
 
 def strip_accents(text):
-    return "".join(
-        c for c in unicodedata.normalize("NFKD", str(text))
-        if not unicodedata.combining(c)
-    )
+	return "".join(
+		c for c in unicodedata.normalize("NFKD", str(text))
+		if not unicodedata.combining(c)
+	)
 
 def split_stat(val_str):
-    """Splits '23/53' (FEB live format) or '23-53' into (23.0, 53.0)."""
-    parts = re.split(r"[-/]", str(val_str).strip())
-    if len(parts) == 2:
-        try:
-            return float(parts[0]), float(parts[1])
-        except ValueError:
-            pass
-    return 0.0, 0.0
+	"""Splits '23/53' (FEB live format) or '23-53' into (23.0, 53.0)."""
+	parts = re.split(r"[-/]", str(val_str).strip())
+	if len(parts) == 2:
+		try:
+			return float(parts[0]), float(parts[1])
+		except ValueError:
+			pass
+	return 0.0, 0.0
 
 def clean_num(val):
-    """Safely converts RealGM/FEB numbers (handles commas, thousands dots, NaN)."""
-    if val is None or (isinstance(val, float) and math.isnan(val)):
-        return 0.0
-    s = str(val).strip()
-    if not s or s in ["-", "—", "nan", "None"]:
-        return 0.0
-    # Strip RealGM thousands commas like "1,338"
-    if "," in s and "." in s:
-        s = s.replace(",", "")
-    elif "," in s:
-        # If formatted like "1,338" (3 digits after comma), remove comma; else treat as decimal
-        if re.match(r"^\d{1,3}(,\d{3})+$", s):
-            s = s.replace(",", "")
-        else:
-            s = s.replace(",", ".")
-    # Strip Spanish thousands dots like "1.045"
-    s = re.sub(r"(?<=\d)\.(?=\d{3}\b)", "", s)
-    try:
-        return float(s)
-    except ValueError:
-        return 0.0
+	"""Safely converts RealGM/FEB numbers (handles commas, thousands dots, NaN)."""
+	if val is None or (isinstance(val, float) and math.isnan(val)):
+		return 0.0
+	s = str(val).strip()
+	if not s or s in ["-", "—", "nan", "None"]:
+		return 0.0
+	# Strip RealGM thousands commas like "1,338"
+	if "," in s and "." in s:
+		s = s.replace(",", "")
+	elif "," in s:
+		# If formatted like "1,338" (3 digits after comma), remove comma; else treat as decimal
+		if re.match(r"^\d{1,3}(,\d{3})+$", s):
+			s = s.replace(",", "")
+		else:
+			s = s.replace(",", ".")
+	# Strip Spanish thousands dots like "1.045"
+	s = re.sub(r"(?<=\d)\.(?=\d{3}\b)", "", s)
+	try:
+		return float(s)
+	except ValueError:
+		return 0.0
 def _new_browser_session(impersonate_target="chrome"):
 	"""Creates a curl_cffi Session, falling back safely if an older curl_cffi version is installed."""
 	if not curl_requests:
@@ -245,75 +245,75 @@ def _new_browser_session(impersonate_target="chrome"):
 			continue
 	return curl_requests.Session()
 def fetch_html_content(url, headers=None, data=None, method="GET", session=None):
-    scraperapi_key = None
-    try:
-        if "SCRAPERAPI_KEY" in st.secrets:
-            raw_key = str(st.secrets["SCRAPERAPI_KEY"]).strip()
-            if raw_key and "your_" not in raw_key.lower():
-                scraperapi_key = raw_key
-    except Exception:
-        pass
+	scraperapi_key = None
+	try:
+		if "SCRAPERAPI_KEY" in st.secrets:
+			raw_key = str(st.secrets["SCRAPERAPI_KEY"]).strip()
+			if raw_key and "your_" not in raw_key.lower():
+				scraperapi_key = raw_key
+	except Exception:
+		pass
 
-    scraper_err = None
-    # Only spend ScraperAPI credits on RealGM (FEB works directly)
-    if scraperapi_key and "realgm.com" in url and method.upper() == "GET":
-        encoded_url = urllib.parse.quote(url, safe="")
-        api_url = f"https://api.scraperapi.com?api_key={scraperapi_key}&url={encoded_url}"
-        try:
-            req = urllib.request.Request(api_url, method="GET")
-            with urllib.request.urlopen(req, timeout=70) as response:
-                html_text = response.read().decode("utf-8", errors="ignore")
-                final_url = response.headers.get("Sa-Final-Url", url)
-                if "/Summary/" not in final_url:
-                    m = re.search(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html_text)
-                    if m and "/Summary/" in m.group(1):
-                        final_url = m.group(1)
-                return html_text, final_url, None
-        except Exception as e:
-            scraper_err = str(e)
+	scraper_err = None
+	# Only spend ScraperAPI credits on RealGM (FEB works directly)
+	if scraperapi_key and "realgm.com" in url and method.upper() == "GET":
+		encoded_url = urllib.parse.quote(url, safe="")
+		api_url = f"https://api.scraperapi.com?api_key={scraperapi_key}&url={encoded_url}"
+		try:
+			req = urllib.request.Request(api_url, method="GET")
+			with urllib.request.urlopen(req, timeout=70) as response:
+				html_text = response.read().decode("utf-8", errors="ignore")
+				final_url = response.headers.get("Sa-Final-Url", url)
+				if "/Summary/" not in final_url:
+					m = re.search(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html_text)
+					if m and "/Summary/" in m.group(1):
+						final_url = m.group(1)
+				return html_text, final_url, None
+		except Exception as e:
+			scraper_err = str(e)
 
-    # --- Direct connection (used for FEB and local fallback) ---
-    if curl_requests:
-        targets = [None] if session is not None else ["chrome", "chrome124", "safari170", "firefox133"]
-        last_err = None
-        for target in targets:
-            try:
-                client = session if session is not None else _new_browser_session(target)
-                if "realgm.com" in url and method.upper() == "GET" and len(client.cookies) == 0:
-                    try:
-                        client.get("https://basketball.realgm.com/", timeout=15)
-                    except Exception:
-                        pass
+	# --- Direct connection (used for FEB and local fallback) ---
+	if curl_requests:
+		targets = [None] if session is not None else ["chrome", "chrome124", "safari170", "firefox133"]
+		last_err = None
+		for target in targets:
+			try:
+				client = session if session is not None else _new_browser_session(target)
+				if "realgm.com" in url and method.upper() == "GET" and len(client.cookies) == 0:
+					try:
+						client.get("https://basketball.realgm.com/", timeout=15)
+					except Exception:
+						pass
 
-                if method.upper() == "POST":
-                    if isinstance(data, bytes):
-                        data = dict(urllib.parse.parse_qsl(data.decode("utf-8", errors="ignore")))
-                    post_headers = headers or {"Referer": url, "Origin": urllib.parse.urljoin(url, "/")}
-                    response = client.post(url, headers=post_headers, data=data, timeout=20)
-                else:
-                    response = client.get(url, headers=headers, timeout=20)
+				if method.upper() == "POST":
+					if isinstance(data, bytes):
+						data = dict(urllib.parse.parse_qsl(data.decode("utf-8", errors="ignore")))
+					post_headers = headers or {"Referer": url, "Origin": urllib.parse.urljoin(url, "/")}
+					response = client.post(url, headers=post_headers, data=data, timeout=20)
+				else:
+					response = client.get(url, headers=headers, timeout=20)
 
-                if response.status_code == 200:
-                    return response.text, str(response.url), None
-                last_err = f"HTTP Error {response.status_code}"
-                if response.status_code != 403 or session is not None:
-                    break
-            except Exception as e:
-                last_err = f"Fetch failed: {e}"
+				if response.status_code == 200:
+					return response.text, str(response.url), None
+				last_err = f"HTTP Error {response.status_code}"
+				if response.status_code != 403 or session is not None:
+					break
+			except Exception as e:
+				last_err = f"Fetch failed: {e}"
 
-        if scraper_err:
-            last_err = f"{last_err} (ScraperAPI: {scraper_err})"
-        return None, None, last_err or "Fetch failed"
+		if scraper_err:
+			last_err = f"{last_err} (ScraperAPI: {scraper_err})"
+		return None, None, last_err or "Fetch failed"
 
-    if not headers:
-        headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36"}
-    try:
-        encoded = urllib.parse.urlencode(data).encode("utf-8") if isinstance(data, dict) else data
-        req = urllib.request.Request(url, headers=headers, data=encoded, method=method)
-        with urllib.request.urlopen(req, timeout=20) as response:
-            return response.read().decode("utf-8", errors="ignore"), response.geturl(), None
-    except Exception as e:
-        return None, None, f"{e}"
+	if not headers:
+		headers = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 Chrome/131.0.0.0 Safari/537.36"}
+	try:
+		encoded = urllib.parse.urlencode(data).encode("utf-8") if isinstance(data, dict) else data
+		req = urllib.request.Request(url, headers=headers, data=encoded, method=method)
+		with urllib.request.urlopen(req, timeout=20) as response:
+			return response.read().decode("utf-8", errors="ignore"), response.geturl(), None
+	except Exception as e:
+		return None, None, f"{e}"
 # Set page layout
 st.set_page_config(layout="wide", page_title="RealGM Stats Conversor")
 
@@ -754,106 +754,106 @@ leagues_df = load_league_data(RAW_LEAGUE_DATA)
 # REALGM LOADER (Ensure this is in the top half of your script)
 # ==========================================
 def load_scraped_row_into_state(df_row, player_name, height_cm, yob, team_name="Unknown Team", is_totals_table=False):
-    row_dict = {str(k).upper(): v for k, v in df_row.items()}
+	row_dict = {str(k).upper(): v for k, v in df_row.items()}
 
-    def get_val(keys_list, default=0.0):
-        for k in keys_list:
-            if k in row_dict:
-                val = clean_num(row_dict[k])
-                return val
-        return default
+	def get_val(keys_list, default=0.0):
+		for k in keys_list:
+			if k in row_dict:
+				val = clean_num(row_dict[k])
+				return val
+		return default
 
-    gp_val = get_val(["GP"], default=1.0)
-    divisor = gp_val if (is_totals_table and gp_val > 0) else 1.0
+	gp_val = get_val(["GP"], default=1.0)
+	divisor = gp_val if (is_totals_table and gp_val > 0) else 1.0
 
-    mapped_stats = {
-        "MIN": round(get_val(["MIN"]) / divisor, 1),
-        "PTS": round(get_val(["PTS"]) / divisor, 1),
-        "FGM": round(get_val(["FGM", "FG"]) / divisor, 2),
-        "FGA": round(get_val(["FGA"]) / divisor, 2),
-        "FG%": get_val(["FG%"]),
-        "3PM": round(get_val(["3PM", "3FG", "3P"]) / divisor, 2),
-        "3PA": round(get_val(["3PA", "3FGA"]) / divisor, 2),
-        "3P%": get_val(["3P%", "3FG%"]),
-        "FTM": round(get_val(["FTM", "FT"]) / divisor, 2),
-        "FTA": round(get_val(["FTA"]) / divisor, 2),
-        "FT%": get_val(["FT%"]),
-        "OFF": round(get_val(["OFF", "ORB"]) / divisor, 1),
-        "DEF": round(get_val(["DEF", "DRB"]) / divisor, 1),
-        "TRB": round(get_val(["TRB", "REB"]) / divisor, 1),
-        "AST": round(get_val(["AST"]) / divisor, 1),
-        "STL": round(get_val(["STL"]) / divisor, 1),
-        "BLK": round(get_val(["BLK"]) / divisor, 1),
-        "TOV": round(get_val(["TOV", "TO"]) / divisor, 1),
-        "PF": round(get_val(["PF"]) / divisor, 1)
-    }
+	mapped_stats = {
+		"MIN": round(get_val(["MIN"]) / divisor, 1),
+		"PTS": round(get_val(["PTS"]) / divisor, 1),
+		"FGM": round(get_val(["FGM", "FG"]) / divisor, 2),
+		"FGA": round(get_val(["FGA"]) / divisor, 2),
+		"FG%": get_val(["FG%"]),
+		"3PM": round(get_val(["3PM", "3FG", "3P"]) / divisor, 2),
+		"3PA": round(get_val(["3PA", "3FGA"]) / divisor, 2),
+		"3P%": get_val(["3P%", "3FG%"]),
+		"FTM": round(get_val(["FTM", "FT"]) / divisor, 2),
+		"FTA": round(get_val(["FTA"]) / divisor, 2),
+		"FT%": get_val(["FT%"]),
+		"OFF": round(get_val(["OFF", "ORB"]) / divisor, 1),
+		"DEF": round(get_val(["DEF", "DRB"]) / divisor, 1),
+		"TRB": round(get_val(["TRB", "REB"]) / divisor, 1),
+		"AST": round(get_val(["AST"]) / divisor, 1),
+		"STL": round(get_val(["STL"]) / divisor, 1),
+		"BLK": round(get_val(["BLK"]) / divisor, 1),
+		"TOV": round(get_val(["TOV", "TO"]) / divisor, 1),
+		"PF": round(get_val(["PF"]) / divisor, 1)
+	}
 
-    # Ensure percentages are populated if Totals table omitted them
-    if mapped_stats["FG%"] == 0 and mapped_stats["FGA"] > 0:
-        mapped_stats["FG%"] = round(mapped_stats["FGM"] / mapped_stats["FGA"], 3)
-    if mapped_stats["3P%"] == 0 and mapped_stats["3PA"] > 0:
-        mapped_stats["3P%"] = round(mapped_stats["3PM"] / mapped_stats["3PA"], 3)
-    if mapped_stats["FT%"] == 0 and mapped_stats["FTA"] > 0:
-        mapped_stats["FT%"] = round(mapped_stats["FTM"] / mapped_stats["FTA"], 3)
+	# Ensure percentages are populated if Totals table omitted them
+	if mapped_stats["FG%"] == 0 and mapped_stats["FGA"] > 0:
+		mapped_stats["FG%"] = round(mapped_stats["FGM"] / mapped_stats["FGA"], 3)
+	if mapped_stats["3P%"] == 0 and mapped_stats["3PA"] > 0:
+		mapped_stats["3P%"] = round(mapped_stats["3PM"] / mapped_stats["3PA"], 3)
+	if mapped_stats["FT%"] == 0 and mapped_stats["FTA"] > 0:
+		mapped_stats["FT%"] = round(mapped_stats["FTM"] / mapped_stats["FTA"], 3)
 
-    # Collect Career Totals for Wilson CI + Auto-Scout History
-    rgm_history = []
-    rgm_profile = st.session_state.get("parsed_player_profile")
-    if rgm_profile and "tables" in rgm_profile:
-        for table in rgm_profile["tables"]:
-            if "TOTALS" in table["name"].upper():
-                rgm_history.extend(table["df"].to_dict("records"))
+	# Collect Career Totals for Wilson CI + Auto-Scout History
+	rgm_history = []
+	rgm_profile = st.session_state.get("parsed_player_profile")
+	if rgm_profile and "tables" in rgm_profile:
+		for table in rgm_profile["tables"]:
+			if "TOTALS" in table["name"].upper():
+				rgm_history.extend(table["df"].to_dict("records"))
 
-    st.session_state.imported_history = rgm_history
+	st.session_state.imported_history = rgm_history
 
-    selected_season = str(df_row.get("SEASON", df_row.get("YEAR", ""))).strip()
-    selected_team = str(df_row.get("TEAM", df_row.get("SCHOOL", ""))).strip()
-    shooting_ci = calculate_career_shooting_ci(
-        rgm_history, mapped_stats, gp_val,
-        source="RealGM", skip_label=(selected_season, selected_team)
-    )
-    st.session_state.shooting_ci = shooting_ci
-    st.session_state.shooting_debug = shooting_ci["debug"]
+	selected_season = str(df_row.get("SEASON", df_row.get("YEAR", ""))).strip()
+	selected_team = str(df_row.get("TEAM", df_row.get("SCHOOL", ""))).strip()
+	shooting_ci = calculate_career_shooting_ci(
+		rgm_history, mapped_stats, gp_val,
+		source="RealGM", skip_label=(selected_season, selected_team)
+	)
+	st.session_state.shooting_ci = shooting_ci
+	st.session_state.shooting_debug = shooting_ci["debug"]
 
-    # Update Persistent & Widget State
-    st.session_state.raw_stats = mapped_stats
-    st.session_state.p_player_name = player_name
-    st.session_state.p_orig_team = str(team_name)
-    st.session_state.t_player_name = player_name
-    st.session_state.t_orig_team = str(team_name)
+	# Update Persistent & Widget State
+	st.session_state.raw_stats = mapped_stats
+	st.session_state.p_player_name = player_name
+	st.session_state.p_orig_team = str(team_name)
+	st.session_state.t_player_name = player_name
+	st.session_state.t_orig_team = str(team_name)
 
-    if height_cm:
-        st.session_state.p_height = int(height_cm)
-        st.session_state.t_height = int(height_cm)
-    if yob:
-        st.session_state.p_yob = int(yob)
-        st.session_state.t_yob = int(yob)
-    if gp_val > 0:
-        st.session_state.p_gp = int(gp_val)
-        st.session_state.t_gp = int(gp_val)
+	if height_cm:
+		st.session_state.p_height = int(height_cm)
+		st.session_state.t_height = int(height_cm)
+	if yob:
+		st.session_state.p_yob = int(yob)
+		st.session_state.t_yob = int(yob)
+	if gp_val > 0:
+		st.session_state.p_gp = int(gp_val)
+		st.session_state.t_gp = int(gp_val)
 
-    st.session_state.p_selected_modifiers = []
-    st.session_state.t_selected_modifiers = []
+	st.session_state.p_selected_modifiers = []
+	st.session_state.t_selected_modifiers = []
 
-    # Automatic NCAA Conference Detection
-    is_ncaa_row = "SCHOOL" in df_row
-    scraped_link = df_row.get("NCAA_CONF_LINK", "")
-    if is_ncaa_row and scraped_link:
-        match = re.search(r'/ncaa/conferences/([^/]+)/', str(scraped_link))
-        if match:
-            mapped_tier, mapped_conf = find_ncaa_scouting_tier(match.group(1).strip())
-            if mapped_tier and mapped_conf:
-                st.session_state.p_orig_league_name = mapped_tier
-                st.session_state.t_orig_league_name = mapped_tier
-                st.session_state.t_ncaa_conference = mapped_conf
-            else:
-                st.session_state.t_ncaa_conference = "Search Conference..."
-        else:
-            st.session_state.t_ncaa_conference = "Search Conference..."
-    else:
-        st.session_state.t_ncaa_conference = "Search Conference..."
+	# Automatic NCAA Conference Detection
+	is_ncaa_row = "SCHOOL" in df_row
+	scraped_link = df_row.get("NCAA_CONF_LINK", "")
+	if is_ncaa_row and scraped_link:
+		match = re.search(r'/ncaa/conferences/([^/]+)/', str(scraped_link))
+		if match:
+			mapped_tier, mapped_conf = find_ncaa_scouting_tier(match.group(1).strip())
+			if mapped_tier and mapped_conf:
+				st.session_state.p_orig_league_name = mapped_tier
+				st.session_state.t_orig_league_name = mapped_tier
+				st.session_state.t_ncaa_conference = mapped_conf
+			else:
+				st.session_state.t_ncaa_conference = "Search Conference..."
+		else:
+			st.session_state.t_ncaa_conference = "Search Conference..."
+	else:
+		st.session_state.t_ncaa_conference = "Search Conference..."
 
-    st.session_state.data_version += 1
+	st.session_state.data_version += 1
 def add_to_shortlist_callback(
 	name, orig_team, orig_league, dest_league, position, target_role, calculated_age, height_cm, gp, 
 	raw_stats, proj, total_risk_score, total_context_multiplier, active_modifiers, variability,
@@ -1309,364 +1309,498 @@ def bs4_to_dataframe(table_element):
 
 # Added 'row_label' and 'history' to the arguments
 def load_feb_row_into_state(df_row, player_name, height_cm, yob, team_name, gp, row_label, history, detected_league=None):
-    row = {str(k).upper(): str(v).strip() for k, v in df_row.items()}
-    gp_val = float(gp) if float(gp) > 0 else 1.0
+	row = {str(k).upper(): str(v).strip() for k, v in df_row.items()}
+	gp_val = float(gp) if float(gp) > 0 else 1.0
 
-    def parse_min(val_str):
-        if ":" in str(val_str):
-            p = str(val_str).split(":")
-            return clean_num(p[0]) + (clean_num(p[1]) / 60.0)
-        return clean_num(val_str)
+	def parse_min(val_str):
+		if ":" in str(val_str):
+			p = str(val_str).split(":")
+			return clean_num(p[0]) + (clean_num(p[1]) / 60.0)
+		return clean_num(val_str)
 
-    m2, a2 = split_stat(row.get("T2", "0/0"))
-    m3, a3 = split_stat(row.get("T3", "0/0"))
-    mft, aft = split_stat(row.get("TL", "0/0"))
+	m2, a2 = split_stat(row.get("T2", "0/0"))
+	m3, a3 = split_stat(row.get("T3", "0/0"))
+	mft, aft = split_stat(row.get("TL", "0/0"))
 
-    mapped_stats = {
-        "MIN": round(parse_min(row.get("MIN", "0")) / gp_val, 1),
-        "PTS": round(clean_num(row.get("PT", 0)) / gp_val, 1),
-        "FGM": round((m2 + m3) / gp_val, 2),
-        "FGA": round((a2 + a3) / gp_val, 2),
-        "FG%": round((m2 + m3) / (a2 + a3), 3) if (a2 + a3) > 0 else 0.0,
-        "3PM": round(m3 / gp_val, 2),
-        "3PA": round(a3 / gp_val, 2),
-        "3P%": round(m3 / a3, 3) if a3 > 0 else 0.0,
-        "FTM": round(mft / gp_val, 2),
-        "FTA": round(aft / gp_val, 2),
-        "FT%": round(mft / aft, 3) if aft > 0 else 0.0,
-        "OFF": round(clean_num(row.get("RO", 0)) / gp_val, 1),
-        "DEF": round(clean_num(row.get("RD", 0)) / gp_val, 1),
-        "TRB": round(clean_num(row.get("RT", 0)) / gp_val, 1),
-        "AST": round(clean_num(row.get("AS", 0)) / gp_val, 1),
-        "STL": round(clean_num(row.get("BR", 0)) / gp_val, 1),
-        "BLK": round(clean_num(row.get("TF", 0)) / gp_val, 1),
-        "TOV": round(clean_num(row.get("BP", 0)) / gp_val, 1),
-        "PF": round(clean_num(row.get("FC", 0)) / gp_val, 1)
-    }
+	mapped_stats = {
+		"MIN": round(parse_min(row.get("MIN", "0")) / gp_val, 1),
+		"PTS": round(clean_num(row.get("PT", 0)) / gp_val, 1),
+		"FGM": round((m2 + m3) / gp_val, 2),
+		"FGA": round((a2 + a3) / gp_val, 2),
+		"FG%": round((m2 + m3) / (a2 + a3), 3) if (a2 + a3) > 0 else 0.0,
+		"3PM": round(m3 / gp_val, 2),
+		"3PA": round(a3 / gp_val, 2),
+		"3P%": round(m3 / a3, 3) if a3 > 0 else 0.0,
+		"FTM": round(mft / gp_val, 2),
+		"FTA": round(aft / gp_val, 2),
+		"FT%": round(mft / aft, 3) if aft > 0 else 0.0,
+		"OFF": round(clean_num(row.get("RO", 0)) / gp_val, 1),
+		"DEF": round(clean_num(row.get("RD", 0)) / gp_val, 1),
+		"TRB": round(clean_num(row.get("RT", 0)) / gp_val, 1),
+		"AST": round(clean_num(row.get("AS", 0)) / gp_val, 1),
+		"STL": round(clean_num(row.get("BR", 0)) / gp_val, 1),
+		"BLK": round(clean_num(row.get("TF", 0)) / gp_val, 1),
+		"TOV": round(clean_num(row.get("BP", 0)) / gp_val, 1),
+		"PF": round(clean_num(row.get("FC", 0)) / gp_val, 1)
+	}
 
-    st.session_state.imported_history = history or []
+	st.session_state.imported_history = history or []
 
-    shooting_ci = calculate_career_shooting_ci(
-        history, mapped_stats, gp_val, source="FEB", skip_label=row_label
-    )
-    st.session_state.shooting_ci = shooting_ci
-    st.session_state.shooting_debug = shooting_ci["debug"]
+	shooting_ci = calculate_career_shooting_ci(
+		history, mapped_stats, gp_val, source="FEB", skip_label=row_label
+	)
+	st.session_state.shooting_ci = shooting_ci
+	st.session_state.shooting_debug = shooting_ci["debug"]
 
-    st.session_state.raw_stats = mapped_stats
-    st.session_state.p_player_name = player_name
-    st.session_state.p_orig_team = team_name
-    st.session_state.p_gp = int(gp_val)
-    st.session_state.p_height = int(height_cm) if height_cm else 0
-    st.session_state.p_yob = int(yob)
+	st.session_state.raw_stats = mapped_stats
+	st.session_state.p_player_name = player_name
+	st.session_state.p_orig_team = team_name
+	st.session_state.p_gp = int(gp_val)
+	st.session_state.p_height = int(height_cm) if height_cm else 0
+	st.session_state.p_yob = int(yob)
 
-    st.session_state.t_player_name = player_name
-    st.session_state.t_orig_team = team_name
-    st.session_state.t_yob = int(yob)
-    st.session_state.t_height = int(height_cm) if height_cm else 0
-    st.session_state.t_gp = int(gp_val)
+	st.session_state.t_player_name = player_name
+	st.session_state.t_orig_team = team_name
+	st.session_state.t_yob = int(yob)
+	st.session_state.t_height = int(height_cm) if height_cm else 0
+	st.session_state.t_gp = int(gp_val)
 
-    # Auto-set Original League if detected from Trayectoria Nacional
-    if detected_league and detected_league in leagues_df["League"].values:
-        st.session_state.p_orig_league_name = detected_league
-        st.session_state.t_orig_league_name = detected_league
+	# Auto-set Original League if detected from Trayectoria Nacional
+	if detected_league and detected_league in leagues_df["League"].values:
+		st.session_state.p_orig_league_name = detected_league
+		st.session_state.t_orig_league_name = detected_league
 
-    st.session_state.p_selected_modifiers = []
-    st.session_state.t_selected_modifiers = []
-    st.session_state.data_version += 1
+	st.session_state.p_selected_modifiers = []
+	st.session_state.t_selected_modifiers = []
+	st.session_state.data_version += 1
 
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def parse_feb_player_profile(url):
-    sess = curl_requests.Session(impersonate="chrome124") if curl_requests else None
-    scraper_sess_id = "feb98765"
+	url = url.strip()
+	# Convert www.feb.es/competiciones/... wrapper URLs to the direct baloncestoenvivo.feb.es ASP.NET page
+	if "feb.es/competiciones/" in url.lower():
+		url = re.sub(
+			r'https?://(?:www\.)?feb\.es/competiciones/',
+			'https://baloncestoenvivo.feb.es/',
+			url,
+			flags=re.IGNORECASE
+		)
 
-    html_text, final_url, err = fetch_html_content(
-        url, method="GET", session=sess, scraper_session_id=scraper_sess_id
-    )
-    if err or not html_text:
-        return None, f"FEB connection error: {err or 'Empty response'}"
+	sess = _new_browser_session("chrome")
 
-    soup = BeautifulSoup(html_text, 'html.parser')
+	html_text, final_url, err = fetch_html_content(
+		url, method="GET", session=sess
+	)
+	if err or not html_text:
+		return None, f"FEB connection error: {err or 'Empty response'}"
 
-    player_name = "FEB Player"
-    name_node = soup.find('div', class_='nombre-jugador') or soup.find('div', class_='nombre')
-    if name_node:
-        player_name = name_node.get_text().strip().title()
+	soup = BeautifulSoup(html_text, 'html.parser')
 
-    # Click Trayectoria (ASP.NET Postback) keeping cookies/session; fall back to GET page if POST fails
-    career_btn = soup.find('input', id=re.compile(r'estadisticasCarreraButton', re.IGNORECASE))
-    if career_btn:
-        post_data = {}
-        for h in soup.find_all('input', type='hidden'):
-            if h.get('name'):
-                post_data[h.get('name')] = h.get('value', '')
-        if career_btn.get('name'):
-            post_data[career_btn['name']] = career_btn.get('value', 'Trayectoria')
+	player_name = "FEB Player"
+	name_node = soup.find('div', class_='nombre-jugador') or soup.find('div', class_='nombre')
+	if name_node:
+		player_name = name_node.get_text().strip().title()
 
-        post_html, _, post_err = fetch_html_content(
-            final_url, data=post_data, method="POST", session=sess, scraper_session_id=scraper_sess_id
-        )
-        if not post_err and post_html and ("Totales" in post_html or "Trayectoria" in post_html):
-            soup = BeautifulSoup(post_html, 'html.parser')
+	# Click Trayectoria (ASP.NET Postback) keeping cookies/session; fall back to GET page if POST fails
+	career_btn = soup.find('input', id=re.compile(r'estadisticasCarreraButton', re.IGNORECASE))
+	if career_btn:
+		post_data = {}
+		for h in soup.find_all('input', type='hidden'):
+			if h.get('name'):
+				post_data[h.get('name')] = h.get('value', '')
+		if career_btn.get('name'):
+			post_data[career_btn['name']] = career_btn.get('value', 'Trayectoria')
 
-    FEB_CATEGORY_MAP = {
-        "SEGUNDA FEB": "Spain Segunda FEB",
-        "LEB PLATA": "Spain Segunda FEB",
-        "PRIMERA FEB": "Spain Primera FEB",
-        "LEB ORO": "Spain Primera FEB",
-        "TERCERA FEB": "Spain Tercera FEB",
-        "LIGA EBA": "Spain Tercera FEB",
-        "ACB": "Spain Liga ACB",
-        "LIGA ENDESA": "Spain Liga ACB"
-    }
+		post_html, _, post_err = fetch_html_content(
+			final_url, data=post_data, method="POST", session=sess
+		)
+		if not post_err and post_html and ("Totales" in post_html or "Trayectoria" in post_html):
+			soup = BeautifulSoup(post_html, 'html.parser')
 
-    temp_category_map = {}
-    trayectoria_marker = soup.find(string=re.compile(r'Trayectoria Nacional', re.IGNORECASE))
-    if trayectoria_marker:
-        trayectoria_table = trayectoria_marker.find_next('table')
-        if trayectoria_table:
-            for tr in trayectoria_table.find_all('tr'):
-                t_cells = tr.find_all(['td', 'th'])
-                if len(t_cells) >= 3:
-                    temp_val = t_cells[0].get_text().strip()
-                    categ_val = t_cells[1].get_text().strip().upper()
-                    club_val = t_cells[2].get_text().strip().upper()
-                    if temp_val and categ_val and club_val:
-                        base_club = re.sub(r'\s*\[.*?\]', '', club_val).strip()
-                        temp_category_map[(temp_val, base_club)] = FEB_CATEGORY_MAP.get(categ_val, categ_val)
+	FEB_CATEGORY_MAP = {
+		"SEGUNDA FEB": "Spain Segunda FEB",
+		"LEB PLATA": "Spain Segunda FEB",
+		"PRIMERA FEB": "Spain Primera FEB",
+		"LEB ORO": "Spain Primera FEB",
+		"TERCERA FEB": "Spain Tercera FEB",
+		"LIGA EBA": "Spain Tercera FEB",
+		"ACB": "Spain Liga ACB",
+		"LIGA ENDESA": "Spain Liga ACB"
+	}
 
-    def find_league_for_row(temp, team):
-        def clean_str(s):
-            return re.sub(r'[^A-Z0-9]', '', s.upper())
-        normalized_team = clean_str(team)
-        if not normalized_team:
-            return None
-        for (t_temp, t_club), league in temp_category_map.items():
-            if t_temp == temp and (normalized_team in clean_str(t_club) or clean_str(t_club) in normalized_team):
-                return league
-        for (t_temp, t_club), league in temp_category_map.items():
-            if normalized_team in clean_str(t_club) or clean_str(t_club) in normalized_team:
-                return league
-        return None
+	temp_category_map = {}
+	trayectoria_marker = soup.find(string=re.compile(r'Trayectoria Nacional', re.IGNORECASE))
+	if trayectoria_marker:
+		trayectoria_table = trayectoria_marker.find_next('table')
+		if trayectoria_table:
+			for tr in trayectoria_table.find_all('tr'):
+				t_cells = tr.find_all(['td', 'th'])
+				if len(t_cells) >= 3:
+					temp_val = t_cells[0].get_text().strip()
+					categ_val = t_cells[1].get_text().strip().upper()
+					club_val = t_cells[2].get_text().strip().upper()
+					if temp_val and categ_val and club_val:
+						base_club = re.sub(r'\s*\[.*?\]', '', club_val).strip()
+						temp_category_map[(temp_val, base_club)] = FEB_CATEGORY_MAP.get(categ_val, categ_val)
 
-    table = None
-    totals_marker = soup.find(string=re.compile(r'Totales'))
-    if totals_marker:
-        table = totals_marker.find_next('table')
-    if not table:
-        return None, "FEB Totals table not found on page (possible Cloudflare challenge or invalid player URL)."
+	def find_league_for_row(temp, team):
+		def clean_str(s):
+			return re.sub(r'[^A-Z0-9]', '', s.upper())
+		normalized_team = clean_str(team)
+		if not normalized_team:
+			return None
+		for (t_temp, t_club), league in temp_category_map.items():
+			if t_temp == temp and (normalized_team in clean_str(t_club) or clean_str(t_club) in normalized_team):
+				return league
+		for (t_temp, t_club), league in temp_category_map.items():
+			if normalized_team in clean_str(t_club) or clean_str(t_club) in normalized_team:
+				return league
+		return None
 
-    parsed_rows = []
-    curr_temp, curr_team = "Current", "Unknown Team"
-    cols = ["FASE", "PART", "MIN", "PT", "T2", "T3", "TC", "TL", "RO", "RD", "RT", "AS", "BR", "BP", "TF", "TC_C", "MT", "FC", "FR", "VA"]
+	table = None
+	totals_marker = soup.find(string=re.compile(r'Totales'))
+	if totals_marker:
+		table = totals_marker.find_next('table')
+	if not table:
+		return None, "FEB Totals table not found on page (possible Cloudflare challenge or invalid player URL)."
 
-    for tr in table.find_all('tr'):
-        text = tr.get_text(separator=" ").strip()
-        cells = tr.find_all(['td', 'th'])
-        if "Temp:" in text:
-            t_m = re.search(r'Temp:\s*(\d{2}/\d{2})', text)
-            e_m = re.search(r'Equipo:\s*(.+)', text)
-            if t_m:
-                curr_temp = t_m.group(1)
-            if e_m:
-                curr_team = re.sub(r'\s*[-—–]+$', '', e_m.group(1).strip()).strip().upper()
-            continue
-        if len(cells) >= 18:
-            fase = cells[0].get_text().strip()
-            if fase.upper() in ["FASE", ""] or fase.isdigit():
-                continue
-            row_data = [c.get_text().strip() for c in cells]
-            row_dict = dict(zip(cols, row_data))
-            parsed_league_name = find_league_for_row(curr_temp, curr_team)
-            parsed_rows.append({
-                "label": f"{curr_team} {curr_temp} {fase}",
-                "equipo": curr_team,
-                "league": parsed_league_name,
-                "stats": row_dict
-            })
+	parsed_rows = []
+	curr_temp, curr_team = "Current", "Unknown Team"
+	cols = ["FASE", "PART", "MIN", "PT", "T2", "T3", "TC", "TL", "RO", "RD", "RT", "AS", "BR", "BP", "TF", "TC_C", "MT", "FC", "FR", "VA"]
 
-    height_cm, yob = 0, 2005
-    page_text = soup.get_text()
-    h_match = re.search(r'(?:Altura|Alt)\s*[:.]?\s*(\d{3})', page_text, re.IGNORECASE)
-    if h_match:
-        height_cm = int(h_match.group(1))
-    b_match = re.search(r'(?:Nacimiento|Fecha)\s*[:.]?\s*\d{2}/\d{2}/(\d{4})', page_text, re.IGNORECASE)
-    if b_match:
-        yob = int(b_match.group(1))
+	for tr in table.find_all('tr'):
+		text = tr.get_text(separator=" ").strip()
+		cells = tr.find_all(['td', 'th'])
+		if "Temp:" in text:
+			t_m = re.search(r'Temp:\s*(\d{2}/\d{2})', text)
+			e_m = re.search(r'Equipo:\s*(.+)', text)
+			if t_m:
+				curr_temp = t_m.group(1)
+			if e_m:
+				curr_team = re.sub(r'\s*[-—–]+$', '', e_m.group(1).strip()).strip().upper()
+			continue
+		if len(cells) >= 18:
+			fase = cells[0].get_text().strip()
+			if fase.upper() in ["FASE", ""] or fase.isdigit():
+				continue
+			row_data = [c.get_text().strip() for c in cells]
+			row_dict = dict(zip(cols, row_data))
+			parsed_league_name = find_league_for_row(curr_temp, curr_team)
+			parsed_rows.append({
+				"label": f"{curr_team} {curr_temp} {fase}",
+				"equipo": curr_team,
+				"league": parsed_league_name,
+				"stats": row_dict
+			})
 
-    return {
-        "player_name": player_name,
-        "height_cm": height_cm,
-        "yob": yob,
-        "rows": parsed_rows
-    }, None
+	height_cm, yob = 0, 2005
+	page_text = soup.get_text()
+	h_match = re.search(r'(?:Altura|Alt)\s*[:.]?\s*(\d{3})', page_text, re.IGNORECASE)
+	if h_match:
+		height_cm = int(h_match.group(1))
+	b_match = re.search(r'(?:Nacimiento|Fecha)\s*[:.]?\s*\d{2}/\d{2}/(\d{4})', page_text, re.IGNORECASE)
+	if b_match:
+		yob = int(b_match.group(1))
+
+	return {
+		"player_name": player_name,
+		"height_cm": height_cm,
+		"yob": yob,
+		"rows": parsed_rows
+	}, None
+
+	
+	sess = curl_requests.Session(impersonate="chrome124") if curl_requests else None
+	scraper_sess_id = "feb98765"
+
+	html_text, final_url, err = fetch_html_content(
+		url, method="GET", session=sess, scraper_session_id=scraper_sess_id
+	)
+	if err or not html_text:
+		return None, f"FEB connection error: {err or 'Empty response'}"
+
+	soup = BeautifulSoup(html_text, 'html.parser')
+
+	player_name = "FEB Player"
+	name_node = soup.find('div', class_='nombre-jugador') or soup.find('div', class_='nombre')
+	if name_node:
+		player_name = name_node.get_text().strip().title()
+
+	# Click Trayectoria (ASP.NET Postback) keeping cookies/session; fall back to GET page if POST fails
+	career_btn = soup.find('input', id=re.compile(r'estadisticasCarreraButton', re.IGNORECASE))
+	if career_btn:
+		post_data = {}
+		for h in soup.find_all('input', type='hidden'):
+			if h.get('name'):
+				post_data[h.get('name')] = h.get('value', '')
+		if career_btn.get('name'):
+			post_data[career_btn['name']] = career_btn.get('value', 'Trayectoria')
+
+		post_html, _, post_err = fetch_html_content(
+			final_url, data=post_data, method="POST", session=sess, scraper_session_id=scraper_sess_id
+		)
+		if not post_err and post_html and ("Totales" in post_html or "Trayectoria" in post_html):
+			soup = BeautifulSoup(post_html, 'html.parser')
+
+	FEB_CATEGORY_MAP = {
+		"SEGUNDA FEB": "Spain Segunda FEB",
+		"LEB PLATA": "Spain Segunda FEB",
+		"PRIMERA FEB": "Spain Primera FEB",
+		"LEB ORO": "Spain Primera FEB",
+		"TERCERA FEB": "Spain Tercera FEB",
+		"LIGA EBA": "Spain Tercera FEB",
+		"ACB": "Spain Liga ACB",
+		"LIGA ENDESA": "Spain Liga ACB"
+	}
+
+	temp_category_map = {}
+	trayectoria_marker = soup.find(string=re.compile(r'Trayectoria Nacional', re.IGNORECASE))
+	if trayectoria_marker:
+		trayectoria_table = trayectoria_marker.find_next('table')
+		if trayectoria_table:
+			for tr in trayectoria_table.find_all('tr'):
+				t_cells = tr.find_all(['td', 'th'])
+				if len(t_cells) >= 3:
+					temp_val = t_cells[0].get_text().strip()
+					categ_val = t_cells[1].get_text().strip().upper()
+					club_val = t_cells[2].get_text().strip().upper()
+					if temp_val and categ_val and club_val:
+						base_club = re.sub(r'\s*\[.*?\]', '', club_val).strip()
+						temp_category_map[(temp_val, base_club)] = FEB_CATEGORY_MAP.get(categ_val, categ_val)
+
+	def find_league_for_row(temp, team):
+		def clean_str(s):
+			return re.sub(r'[^A-Z0-9]', '', s.upper())
+		normalized_team = clean_str(team)
+		if not normalized_team:
+			return None
+		for (t_temp, t_club), league in temp_category_map.items():
+			if t_temp == temp and (normalized_team in clean_str(t_club) or clean_str(t_club) in normalized_team):
+				return league
+		for (t_temp, t_club), league in temp_category_map.items():
+			if normalized_team in clean_str(t_club) or clean_str(t_club) in normalized_team:
+				return league
+		return None
+
+	table = None
+	totals_marker = soup.find(string=re.compile(r'Totales'))
+	if totals_marker:
+		table = totals_marker.find_next('table')
+	if not table:
+		return None, "FEB Totals table not found on page (possible Cloudflare challenge or invalid player URL)."
+
+	parsed_rows = []
+	curr_temp, curr_team = "Current", "Unknown Team"
+	cols = ["FASE", "PART", "MIN", "PT", "T2", "T3", "TC", "TL", "RO", "RD", "RT", "AS", "BR", "BP", "TF", "TC_C", "MT", "FC", "FR", "VA"]
+
+	for tr in table.find_all('tr'):
+		text = tr.get_text(separator=" ").strip()
+		cells = tr.find_all(['td', 'th'])
+		if "Temp:" in text:
+			t_m = re.search(r'Temp:\s*(\d{2}/\d{2})', text)
+			e_m = re.search(r'Equipo:\s*(.+)', text)
+			if t_m:
+				curr_temp = t_m.group(1)
+			if e_m:
+				curr_team = re.sub(r'\s*[-—–]+$', '', e_m.group(1).strip()).strip().upper()
+			continue
+		if len(cells) >= 18:
+			fase = cells[0].get_text().strip()
+			if fase.upper() in ["FASE", ""] or fase.isdigit():
+				continue
+			row_data = [c.get_text().strip() for c in cells]
+			row_dict = dict(zip(cols, row_data))
+			parsed_league_name = find_league_for_row(curr_temp, curr_team)
+			parsed_rows.append({
+				"label": f"{curr_team} {curr_temp} {fase}",
+				"equipo": curr_team,
+				"league": parsed_league_name,
+				"stats": row_dict
+			})
+
+	height_cm, yob = 0, 2005
+	page_text = soup.get_text()
+	h_match = re.search(r'(?:Altura|Alt)\s*[:.]?\s*(\d{3})', page_text, re.IGNORECASE)
+	if h_match:
+		height_cm = int(h_match.group(1))
+	b_match = re.search(r'(?:Nacimiento|Fecha)\s*[:.]?\s*\d{2}/\d{2}/(\d{4})', page_text, re.IGNORECASE)
+	if b_match:
+		yob = int(b_match.group(1))
+
+	return {
+		"player_name": player_name,
+		"height_cm": height_cm,
+		"yob": yob,
+		"rows": parsed_rows
+	}, None
 # ==========================================
 # 8. EXACT EXCEL-ALIGNED STATS CONVERSION ENGINE
 # ==========================================
 
 def get_country_system(league_name):
-    if league_name.startswith(("Spain", "Spanish")):
-        return "Spain"
-    if league_name.startswith(("Poland", "Polish")):
-        return "Poland"
-    if league_name.startswith(("Greece", "Greek")):
-        return "Greece"
-    if league_name.startswith("NCAA"):
-        return league_name.split(" (")[0]
-    return league_name.split(" ")[0]
+	if league_name.startswith(("Spain", "Spanish")):
+		return "Spain"
+	if league_name.startswith(("Poland", "Polish")):
+		return "Poland"
+	if league_name.startswith(("Greece", "Greek")):
+		return "Greece"
+	if league_name.startswith("NCAA"):
+		return league_name.split(" (")[0]
+	return league_name.split(" ")[0]
 
 def run_projection_engine(
-    raw_stats, origin_league, dest_league, target_role_mod, position,
-    yob, height, age_mod, height_mod_reb, height_mod_2p,
-    active_modifiers, target_min, target_role, baseline_variability,
-    orig_team_quality="Mid-Table (Default)", shooting_ci=None, gp=26
+	raw_stats, origin_league, dest_league, target_role_mod, position,
+	yob, height, age_mod, height_mod_reb, height_mod_2p,
+	active_modifiers, target_min, target_role, baseline_variability,
+	orig_team_quality="Mid-Table (Default)", shooting_ci=None, gp=26
 ):
-    minutes = raw_stats["MIN"] if raw_stats["MIN"] > 0 else 1.0
-    player_age = 2026 - yob
-    h_cm = 190.0 if height == 0 else (height * 100.0 if height < 3.0 else height)
+	minutes = raw_stats["MIN"] if raw_stats["MIN"] > 0 else 1.0
+	player_age = 2026 - yob
+	h_cm = 190.0 if height == 0 else (height * 100.0 if height < 3.0 else height)
 
-    if player_age <= 21:   age_mod = 1.04
-    elif player_age <= 24: age_mod = 1.02
-    elif player_age <= 29: age_mod = 1.00
-    elif player_age <= 32: age_mod = 0.98
-    elif player_age <= 35: age_mod = 0.95
-    else:                  age_mod = 0.92
+	if player_age <= 21:   age_mod = 1.04
+	elif player_age <= 24: age_mod = 1.02
+	elif player_age <= 29: age_mod = 1.00
+	elif player_age <= 32: age_mod = 0.98
+	elif player_age <= 35: age_mod = 0.95
+	else:                  age_mod = 0.92
 
-    is_defensive_glue = (raw_stats.get("FGA", 0) / minutes) < 0.20
-    origin_tier = float(origin_league["Tier"])
-    dest_tier = float(dest_league["Tier"])
-    is_moving_up = (dest_tier <= 5.0) and (origin_tier >= 6.0)
+	is_defensive_glue = (raw_stats.get("FGA", 0) / minutes) < 0.20
+	origin_tier = float(origin_league["Tier"])
+	dest_tier = float(dest_league["Tier"])
+	is_moving_up = (dest_tier <= 5.0) and (origin_tier >= 6.0)
 
-    rebound_height_modifier = 1.0
-    derived_height_mod_2p = 1.0
-    if is_moving_up:
-        if position == "Bigs (C/PF)" and h_cm < 201:
-            rebound_height_modifier = 0.90
-            derived_height_mod_2p = 0.90
-        elif position in ["Slashers/PGs", "Slashers / D(Non-Shooters)"] and h_cm < 185:
-            rebound_height_modifier = 0.85
-            derived_height_mod_2p = 0.85
+	rebound_height_modifier = 1.0
+	derived_height_mod_2p = 1.0
+	if is_moving_up:
+		if position == "Bigs (C/PF)" and h_cm < 201:
+			rebound_height_modifier = 0.90
+			derived_height_mod_2p = 0.90
+		elif position in ["Slashers/PGs", "Slashers / D(Non-Shooters)"] and h_cm < 185:
+			rebound_height_modifier = 0.85
+			derived_height_mod_2p = 0.85
 
-    pts10 = (raw_stats["PTS"] / minutes) * 10
-    reb10 = (raw_stats["TRB"] / minutes) * 10
-    ast10 = (raw_stats["AST"] / minutes) * 10
-    or10  = (raw_stats["OFF"] / minutes) * 10
-    dr10  = (raw_stats["DEF"] / minutes) * 10
-    to10  = (raw_stats["TOV"] / minutes) * 10
-    stl10 = (raw_stats["STL"] / minutes) * 10
-    blk10 = (raw_stats["BLK"] / minutes) * 10
+	pts10 = (raw_stats["PTS"] / minutes) * 10
+	reb10 = (raw_stats["TRB"] / minutes) * 10
+	ast10 = (raw_stats["AST"] / minutes) * 10
+	or10  = (raw_stats["OFF"] / minutes) * 10
+	dr10  = (raw_stats["DEF"] / minutes) * 10
+	to10  = (raw_stats["TOV"] / minutes) * 10
+	stl10 = (raw_stats["STL"] / minutes) * 10
+	blk10 = (raw_stats["BLK"] / minutes) * 10
 
-    pos_pts = origin_league[position] / dest_league[position]
-    league_reb_ratio = origin_league["Rebounds"] / dest_league["Rebounds"]
-    pos_reb_adjustment = 1.15 if position == "Bigs (C/PF)" else (0.90 if ("PG" in position or "Slasher" in position) else 1.0)
-    pos_reb = league_reb_ratio * pos_reb_adjustment * rebound_height_modifier
-    pace = 0.99 if (origin_tier == 7 and dest_tier == 5) else (dest_league["Pace"] / origin_league["Pace"])
+	pos_pts = origin_league[position] / dest_league[position]
+	league_reb_ratio = origin_league["Rebounds"] / dest_league["Rebounds"]
+	pos_reb_adjustment = 1.15 if position == "Bigs (C/PF)" else (0.90 if ("PG" in position or "Slasher" in position) else 1.0)
+	pos_reb = league_reb_ratio * pos_reb_adjustment * rebound_height_modifier
+	pace = 0.99 if (origin_tier == 7 and dest_tier == 5) else (dest_league["Pace"] / origin_league["Pace"])
 
-    pts_base = pts10 * pos_pts * pace
-    reb_base = reb10 * pos_reb * pace
-    ast_base = ast10 * pos_pts * pace
-    or_base  = or10 * pos_reb * pace
-    dr_base  = dr10 * pos_reb * pace
+	pts_base = pts10 * pos_pts * pace
+	reb_base = reb10 * pos_reb * pace
+	ast_base = ast10 * pos_pts * pace
+	or_base  = or10 * pos_reb * pace
+	dr_base  = dr10 * pos_reb * pace
 
-    if target_role == "C (Rotation Player)":
-        pts_smoothed = pts_base if pts_base <= 3.0 else 3.0 + (pts_base - 3.0) / 2
-        if reb_base > 2.25:  reb_smoothed = 2.25 + (reb_base - 2.25) / 4
-        elif reb_base > 2.0: reb_smoothed = 2.0 + (reb_base - 2.0) / 2
-        else:                reb_smoothed = reb_base
-    else:
-        pts_smoothed = pts_base if pts_base <= 2.5 else 2.5 + (pts_base - 2.5) / 2
-        reb_smoothed = reb_base if reb_base <= 2.5 else 2.5 + (reb_base - 2.5) / 2
+	if target_role == "C (Rotation Player)":
+		pts_smoothed = pts_base if pts_base <= 3.0 else 3.0 + (pts_base - 3.0) / 2
+		if reb_base > 2.25:  reb_smoothed = 2.25 + (reb_base - 2.25) / 4
+		elif reb_base > 2.0: reb_smoothed = 2.0 + (reb_base - 2.0) / 2
+		else:                reb_smoothed = reb_base
+	else:
+		pts_smoothed = pts_base if pts_base <= 2.5 else 2.5 + (pts_base - 2.5) / 2
+		reb_smoothed = reb_base if reb_base <= 2.5 else 2.5 + (reb_base - 2.5) / 2
 
-    reb_ratio = reb_smoothed / reb_base if reb_base > 0 else 1.0
-    or_smoothed = or_base * reb_ratio
-    dr_smoothed = dr_base * reb_ratio
+	reb_ratio = reb_smoothed / reb_base if reb_base > 0 else 1.0
+	or_smoothed = or_base * reb_ratio
+	dr_smoothed = dr_base * reb_ratio
 
-    role_map = {"A (Franchise Player)": 1.20, "B (Core Starter)": 1.10, "C (Rotation Player)": 1.00, "D (Glue / Specialist)": 0.90}
-    role_mult = role_map.get(target_role, 1.00)
-    if is_defensive_glue:
-        role_mult = min(role_mult, 1.00)
+	role_map = {"A (Franchise Player)": 1.20, "B (Core Starter)": 1.10, "C (Rotation Player)": 1.00, "D (Glue / Specialist)": 0.90}
+	role_mult = role_map.get(target_role, 1.00)
+	if is_defensive_glue:
+		role_mult = min(role_mult, 1.00)
 
-    c_mults = {"PTS": 1.0, "REB": 1.0, "OR": 1.0, "DR": 1.0, "AST": 1.0, "STL": 1.0, "BLK": 1.0}
-    for mod_name in active_modifiers:
-        if mod_name in SITUATIONAL_MODIFIERS:
-            m = SITUATIONAL_MODIFIERS[mod_name]
-            for target in m.get("targets", []):
-                if target in c_mults:
-                    c_mults[target] *= m["factor"]
+	c_mults = {"PTS": 1.0, "REB": 1.0, "OR": 1.0, "DR": 1.0, "AST": 1.0, "STL": 1.0, "BLK": 1.0}
+	for mod_name in active_modifiers:
+		if mod_name in SITUATIONAL_MODIFIERS:
+			m = SITUATIONAL_MODIFIERS[mod_name]
+			for target in m.get("targets", []):
+				if target in c_mults:
+					c_mults[target] *= m["factor"]
 
-    dest_sys = get_country_system(dest_league["League"])
-    orig_sys = get_country_system(origin_league["League"])
-    cont_mult = 1.08 if (dest_sys == orig_sys and player_age < 30) else 1.00
+	dest_sys = get_country_system(dest_league["League"])
+	orig_sys = get_country_system(origin_league["League"])
+	cont_mult = 1.08 if (dest_sys == orig_sys and player_age < 30) else 1.00
 
-    f_pts10 = pts_smoothed * role_mult * c_mults["PTS"] * cont_mult * age_mod
-    f_reb10 = reb_smoothed * role_mult * c_mults["REB"] * cont_mult * age_mod
-    f_or10  = or_smoothed  * role_mult * c_mults["OR"]  * cont_mult * age_mod
-    f_dr10  = dr_smoothed  * role_mult * c_mults["DR"]  * cont_mult * age_mod
-    f_ast10 = ast_base     * role_mult * c_mults["AST"] * cont_mult * age_mod
+	f_pts10 = pts_smoothed * role_mult * c_mults["PTS"] * cont_mult * age_mod
+	f_reb10 = reb_smoothed * role_mult * c_mults["REB"] * cont_mult * age_mod
+	f_or10  = or_smoothed  * role_mult * c_mults["OR"]  * cont_mult * age_mod
+	f_dr10  = dr_smoothed  * role_mult * c_mults["DR"]  * cont_mult * age_mod
+	f_ast10 = ast_base     * role_mult * c_mults["AST"] * cont_mult * age_mod
 
-    # --- STEP 5: SHOOTING WITH WILSON CONFIDENCE INTERVAL ---
-    if shooting_ci is None:
-        shooting_ci = calculate_career_shooting_ci(None, raw_stats, gp, source="Manual")
+	# --- STEP 5: SHOOTING WITH WILSON CONFIDENCE INTERVAL ---
+	if shooting_ci is None:
+		shooting_ci = calculate_career_shooting_ci(None, raw_stats, gp, source="Manual")
 
-    two_p_diff = (origin_league["2P% Modifier"] / dest_league["2P% Modifier"]) ** 0.5
-    three_p_diff = origin_league["3P% Modifier"] / dest_league["3P% Modifier"]
+	two_p_diff = (origin_league["2P% Modifier"] / dest_league["2P% Modifier"]) ** 0.5
+	three_p_diff = origin_league["3P% Modifier"] / dest_league["3P% Modifier"]
 
-    b2, fl2, ce2, n2 = shooting_ci["2P"]
-    b3, fl3, ce3, n3 = shooting_ci["3P"]
-    bft, flft, ceft, nft = shooting_ci["FT"]
+	b2, fl2, ce2, n2 = shooting_ci["2P"]
+	b3, fl3, ce3, n3 = shooting_ci["3P"]
+	bft, flft, ceft, nft = shooting_ci["FT"]
 
-    f_2p       = b2 * two_p_diff * derived_height_mod_2p
-    f_2p_floor = max(0.0, fl2 * two_p_diff * derived_height_mod_2p)
-    f_2p_ceil  = min(0.85, ce2 * two_p_diff * derived_height_mod_2p)
+	f_2p       = b2 * two_p_diff * derived_height_mod_2p
+	f_2p_floor = max(0.0, fl2 * two_p_diff * derived_height_mod_2p)
+	f_2p_ceil  = min(0.85, ce2 * two_p_diff * derived_height_mod_2p)
 
-    f_3p       = b3 * three_p_diff
-    f_3p_floor = max(0.0, fl3 * three_p_diff)
-    f_3p_ceil  = min(0.60, ce3 * three_p_diff)
+	f_3p       = b3 * three_p_diff
+	f_3p_floor = max(0.0, fl3 * three_p_diff)
+	f_3p_ceil  = min(0.60, ce3 * three_p_diff)
 
-    f_ft       = bft
-    f_ft_floor = flft
-    f_ft_ceil  = ceft
+	f_ft       = bft
+	f_ft_floor = flft
+	f_ft_ceil  = ceft
 
-    # --- STEP 6: CEILING BONUSES & TRUE PIR/VAL ---
-    delta = baseline_variability
-    vol_scale = pace * role_mult * c_mults["PTS"] * cont_mult
-    proj_3pa = (raw_stats["3PA"] / minutes) * target_min * vol_scale
-    proj_fta = (raw_stats["FTA"] / minutes) * target_min * vol_scale
-    proj_fga = (raw_stats["FGA"] / minutes) * target_min * vol_scale
-    proj_2pa = max(0.0, proj_fga - proj_3pa)
+	# --- STEP 6: CEILING BONUSES & TRUE PIR/VAL ---
+	delta = baseline_variability
+	vol_scale = pace * role_mult * c_mults["PTS"] * cont_mult
+	proj_3pa = (raw_stats["3PA"] / minutes) * target_min * vol_scale
+	proj_fta = (raw_stats["FTA"] / minutes) * target_min * vol_scale
+	proj_fga = (raw_stats["FGA"] / minutes) * target_min * vol_scale
+	proj_2pa = max(0.0, proj_fga - proj_3pa)
 
-    bonus_skill = (proj_3pa * delta * 3 * f_3p) + (proj_2pa * delta * 2 * f_2p) + (proj_fta * delta * 1 * f_ft)
-    bonus_phys_pts = ((f_pts10 / 10.0) * target_min) * delta
-    size_floor = 0.22 * target_min if h_cm > 203 else 0
+	bonus_skill = (proj_3pa * delta * 3 * f_3p) + (proj_2pa * delta * 2 * f_2p) + (proj_fta * delta * 1 * f_ft)
+	bonus_phys_pts = ((f_pts10 / 10.0) * target_min) * delta
+	size_floor = 0.22 * target_min if h_cm > 203 else 0
 
-    base_proj = {
-        "Min": target_min,
-        "PTS": round((f_pts10 / 10.0) * target_min, 1),
-        "REB": round((f_reb10 / 10.0) * target_min, 1),
-        "OR":  round((f_or10 / 10.0) * target_min, 1),
-        "DR":  round((f_dr10 / 10.0) * target_min, 1),
-        "AS":  round((f_ast10 / 10.0) * target_min, 1),
-        "TO":  round(((to10 * (origin_league["TO Modifier"] / dest_league["TO Modifier"]) * pace * 1.075) / 10.0) * target_min, 1),
-        "STL": round(((stl10 * (origin_league["STL Modifier"] / dest_league["STL Modifier"]) * pace * role_mult * cont_mult * c_mults["STL"]) / 10.0) * target_min, 1),
-        "BLK": round(((blk10 * (origin_league["BLK Modifier"] / dest_league["BLK Modifier"]) * pace * role_mult * cont_mult * c_mults["BLK"]) / 10.0) * target_min, 1),
-        "2P%": round(f_2p, 3), "2P%_floor": round(f_2p_floor, 3), "2P%_ceil": round(f_2p_ceil, 3), "n_2p": n2,
-        "3P%": round(f_3p, 3), "3P%_floor": round(f_3p_floor, 3), "3P%_ceil": round(f_3p_ceil, 3), "n_3p": n3,
-        "FT%": round(f_ft, 3), "FT%_floor": round(f_ft_floor, 3), "FT%_ceil": round(f_ft_ceil, 3), "n_ft": nft,
-        "bonus_skill": bonus_skill, "bonus_phys_pts": bonus_phys_pts, "size_floor": size_floor,
-        "ft_variance": delta, "twop_variance": delta, "threep_variance": max(0.12, delta),
-        "proj_3pa": round(proj_3pa, 1),
-        "pace_applied": pace
-    }
+	base_proj = {
+		"Min": target_min,
+		"PTS": round((f_pts10 / 10.0) * target_min, 1),
+		"REB": round((f_reb10 / 10.0) * target_min, 1),
+		"OR":  round((f_or10 / 10.0) * target_min, 1),
+		"DR":  round((f_dr10 / 10.0) * target_min, 1),
+		"AS":  round((f_ast10 / 10.0) * target_min, 1),
+		"TO":  round(((to10 * (origin_league["TO Modifier"] / dest_league["TO Modifier"]) * pace * 1.075) / 10.0) * target_min, 1),
+		"STL": round(((stl10 * (origin_league["STL Modifier"] / dest_league["STL Modifier"]) * pace * role_mult * cont_mult * c_mults["STL"]) / 10.0) * target_min, 1),
+		"BLK": round(((blk10 * (origin_league["BLK Modifier"] / dest_league["BLK Modifier"]) * pace * role_mult * cont_mult * c_mults["BLK"]) / 10.0) * target_min, 1),
+		"2P%": round(f_2p, 3), "2P%_floor": round(f_2p_floor, 3), "2P%_ceil": round(f_2p_ceil, 3), "n_2p": n2,
+		"3P%": round(f_3p, 3), "3P%_floor": round(f_3p_floor, 3), "3P%_ceil": round(f_3p_ceil, 3), "n_3p": n3,
+		"FT%": round(f_ft, 3), "FT%_floor": round(f_ft_floor, 3), "FT%_ceil": round(f_ft_ceil, 3), "n_ft": nft,
+		"bonus_skill": bonus_skill, "bonus_phys_pts": bonus_phys_pts, "size_floor": size_floor,
+		"ft_variance": delta, "twop_variance": delta, "threep_variance": max(0.12, delta),
+		"proj_3pa": round(proj_3pa, 1),
+		"pace_applied": pace
+	}
 
-    missed_fg = (proj_2pa * (1.0 - f_2p)) + (proj_3pa * (1.0 - f_3p))
-    missed_ft = proj_fta * (1.0 - f_ft)
-    base_proj["VAL"] = round(
-        base_proj["PTS"] + base_proj["REB"] + base_proj["AS"] + base_proj["STL"] + base_proj["BLK"]
-        - base_proj["TO"] - missed_fg - missed_ft,
-        1
-    )
+	missed_fg = (proj_2pa * (1.0 - f_2p)) + (proj_3pa * (1.0 - f_3p))
+	missed_ft = proj_fta * (1.0 - f_ft)
+	base_proj["VAL"] = round(
+		base_proj["PTS"] + base_proj["REB"] + base_proj["AS"] + base_proj["STL"] + base_proj["BLK"]
+		- base_proj["TO"] - missed_fg - missed_ft,
+		1
+	)
 
-    return base_proj, player_age, age_mod, is_defensive_glue, cont_mult, is_moving_up, rebound_height_modifier, derived_height_mod_2p, h_cm, origin_tier, dest_tier, 1.0
+	return base_proj, player_age, age_mod, is_defensive_glue, cont_mult, is_moving_up, rebound_height_modifier, derived_height_mod_2p, h_cm, origin_tier, dest_tier, 1.0
 
 # ==========================================
 # 9. SIDEBAR CONFIGURATION (DARK AREA)
@@ -2020,13 +2154,13 @@ else:
 			dest_tier, 
 			overall_league_mod
 		) = run_projection_engine(
-         st.session_state.raw_stats, orig_league, dest_league, role_mod, position,
-         yob, height, 1.00, 1.00, 1.00,
-         selected_modifiers, target_min, target_role, variability,
-         orig_team_quality,
-         shooting_ci=st.session_state.get("shooting_ci"),
-         gp=gp
-     )
+		 st.session_state.raw_stats, orig_league, dest_league, role_mod, position,
+		 yob, height, 1.00, 1.00, 1.00,
+		 selected_modifiers, target_min, target_role, variability,
+		 orig_team_quality,
+		 shooting_ci=st.session_state.get("shooting_ci"),
+		 gp=gp
+	 )
   		# Calculate dynamic overall transition confidence (weakest link)
 		cs_map_levels = {"Estimated": 1, "Very Low": 2, "Low": 3, "Medium": 4, "High": 5}
 		orig_cs_num = cs_map_levels.get(orig_league["CS"], 1)
@@ -2519,21 +2653,28 @@ else:
 			# FEB.es Player Import container (Collapsible Expander)
 			with st.expander("🇪🇸 Import from FEB.es (Spain)", expanded=False):
 				st.caption("Paste a player statistics URL from baloncestoenvivo.feb.es or competiciones.feb.es to load domestic Spanish stats.")
-				feb_url_input = st.text_input("Enter FEB Player URL:", placeholder="https://baloncestoenvivo.feb.es/jugador/...")
-				
+				feb_url_input = st.text_input(
+					"Enter FEB Player URL:",
+					placeholder="https://baloncestoenvivo.feb.es/jugador/... or https://www.feb.es/competiciones/jugador/...",
+					key="feb_url_box"
+				)
+
 				if "feb_parsed_profile" not in st.session_state:
 					st.session_state.feb_parsed_profile = None
-					
-				if st.button("Load FEB Profile"):
-					if feb_url_input:
-						with st.spinner("Fetching FEB database..."):
-							feb_profile, feb_err = parse_feb_player_profile(feb_url_input)
-							if feb_err:
-								st.error(feb_err)
-							else:
-								st.session_state.feb_parsed_profile = feb_profile
-								if "shooting_debug" in st.session_state:
-									del st.session_state.shooting_debug # CLEAR OLD DEBUG				
+
+				load_feb_clicked = st.button("Load FEB Profile")
+				url_changed = bool(feb_url_input and feb_url_input.strip() != st.session_state.get("last_feb_url", ""))
+
+				if (load_feb_clicked or url_changed) and feb_url_input.strip():
+					st.session_state.last_feb_url = feb_url_input.strip()
+					with st.spinner("Fetching FEB database..."):
+						feb_profile, feb_err = parse_feb_player_profile(feb_url_input.strip())
+						if feb_err:
+							st.session_state.feb_parsed_profile = None
+							st.error(feb_err)
+						else:
+							st.session_state.feb_parsed_profile = feb_profile
+							st.session_state.pop("shooting_debug", None)				
 				if st.session_state.feb_parsed_profile:
 					f_profile = st.session_state.feb_parsed_profile
 					if not f_profile.get("rows"):
