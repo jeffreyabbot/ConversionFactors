@@ -234,7 +234,16 @@ def clean_num(val):
         return float(s)
     except ValueError:
         return 0.0
-
+def _new_browser_session(impersonate_target="chrome"):
+	"""Creates a curl_cffi Session, falling back safely if an older curl_cffi version is installed."""
+	if not curl_requests:
+		return None
+	for target in [impersonate_target, "chrome124", "chrome120", "safari170"]:
+		try:
+			return curl_requests.Session(impersonate=target)
+		except Exception:
+			continue
+	return curl_requests.Session()
 def fetch_html_content(url, headers=None, data=None, method="GET", session=None):
     scraperapi_key = None
     try:
