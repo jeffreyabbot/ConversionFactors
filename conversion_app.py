@@ -507,9 +507,9 @@ if "p_variability" not in st.session_state:
 	st.session_state.p_variability = 0.20
 if "p_orig_team_quality" not in st.session_state:
 	st.session_state.p_orig_team_quality = "Mid-Table (Default)"
-if "data_version" not in st.session_state:
-	st.session_state.data_version = 0
-	widget_defaults = {
+
+# MUST start flush-left (no tabs or spaces before widget_defaults or for)
+widget_defaults = {
 	"t_player_name": st.session_state.p_player_name,
 	"t_orig_team": st.session_state.p_orig_team,
 	"t_orig_team_quality": st.session_state.p_orig_team_quality,
