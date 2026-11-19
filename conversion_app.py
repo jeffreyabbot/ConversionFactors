@@ -3425,12 +3425,14 @@ else:
 							})
 
 					candidates.sort(key=lambda x: x["fit_score"], reverse=True)
-					st.session_state.proactive_top5 = candidates[:5]
+					st.session_state.proactive_top50 = candidates[:50]
 					st.session_state.proactive_meta = (ps_dest, ps_role, ps_min)
 
-			if st.session_state.get("proactive_top5"):
-				top5 = st.session_state.proactive_top5
+			if st.session_state.get("proactive_top50"):
+				top50 = st.session_state.proactive_top50
+				top5 = top50[:5]
 				meta_dest, meta_role, meta_min = st.session_state.proactive_meta
+
 				st.markdown(f"#### Top {len(top5)} Recommended Fits for **{meta_dest}** ({meta_min:.0f} min)")
 
 				for idx, cand in enumerate(top5):
@@ -3452,8 +3454,79 @@ else:
 						with c_right:
 							st.button(
 								"🔎 Load into Workspace",
-								key=f"load_top5_{idx}_{r_info['Player']}",
+								key=f"load_top5_{idx}_{r_info['Player']}_{r_info['Team']}",
 								on_click=load_pool_player_into_state,
 								args=(r_info, meta_dest, meta_role, meta_min),
 								use_container_width=True
 							)
+
+				# --- TOP 50 EXTENDED TABLE ---
+				st.markdown("---")
+				st.markdown(f"#### Extended Leaderboard: Top {len(top50)} Fits for **{meta_dest}**")
+				st.caption("Click any column header to sort by PTS, 3P%, AST, VAL, Age, or Risk.")
+
+				table_rows = []
+				for idx, cand in enumerate(top50):
+					r_info = cand["row"]
+					p = cand["proj"]
+					r_status = "SAFE" if cand["risk"] < 1.5 else ("CAUTION" if cand["risk"] < 3.5 else "HIGH RISK")
+					table_rows.append({
+						"Rank": idx + 1,
+						"Player": r_info["Player"],
+						"Team": r_info["Team"],
+						"Origin League": r_info["Origin League"],
+						"Age": cand["age"],
+						"Height": int(r_info["Height"]),
+						"GP": int(r_info["GP"]),
+						"Fit Score": cand["fit_score"],
+						"Risk": round(cand["risk"], 1),
+						"Status": r_status,
+						"PTS": p["PTS"],
+						"REB": p["REB"],
+						"AST": p["AS"],
+						"STL": p["STL"],
+						"BLK": p["BLK"],
+						"TO": p["TO"],
+						"2P%": round(p["2P%"] * 100, 1),
+						"3P%": round(p["3P%"] * 100, 1),
+						"FT%": round(p["FT%"] * 100, 1),
+						"VAL": p["VAL"],
+					})
+
+				top50_df = pd.DataFrame(table_rows)
+				st.dataframe(
+					top50_df,
+					use_container_width=True,
+					hide_index=True,
+					height=450,
+					column_config={
+						"2P%": st.column_config.NumberColumn("2P%", format="%.1f%%"),
+						"3P%": st.column_config.NumberColumn("3P%", format="%.1f%%"),
+						"FT%": st.column_config.NumberColumn("FT%", format="%.1f%%"),
+					}
+				)
+
+				# Load any #1-#50 player + CSV Download
+				act_col1, act_col2, act_col3 = st.columns([2.2, 1.2, 1.2])
+				with act_col1:
+					pick_labels = [f"#{r['Rank']} {r['Player']} ({r['Team']} | {r['Origin League']})" for r in table_rows]
+					chosen_idx = st.selectbox("Inspect any player from Top 50:", range(len(pick_labels)), format_func=lambda i: pick_labels[i], key="top50_pick_idx")
+				with act_col2:
+					st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+					st.button(
+						"🔎 Load Selected Player",
+						key="load_from_top50_btn",
+						on_click=load_pool_player_into_state,
+						args=(top50[chosen_idx]["row"], meta_dest, meta_role, meta_min),
+						use_container_width=True
+					)
+				with act_col3:
+					st.markdown("<div style='margin-top: 28px;'></div>", unsafe_allow_html=True)
+					st.download_button(
+						label="📥 Export Top 50 (CSV)",
+						data=top50_df.to_csv(index=False).encode("utf-8"),
+						file_name=f"proactive_top50_{meta_dest.replace(' ', '_')}.csv",
+						mime="text/csv",
+						key="export_top50_csv",
+						use_container_width=True
+					)
