@@ -2562,7 +2562,7 @@ else:
 			# RealGM Player Search Panel (Collapsible Expander)
 			with st.expander("🔍 Import from RealGM Database", expanded=False):
 				st.caption("Enter a player's name to fetch their statistics and profile directly from RealGM.")
-				search_query = st.text_input("Enter Player Name:", placeholder="e.g. Roger Fabrega")
+				search_query = st.text_input("Enter Player Name, or paste Realgm link:", placeholder="e.g. Roger Fabrega")
 				
 				if "search_results" not in st.session_state:
 					st.session_state.search_results = None
