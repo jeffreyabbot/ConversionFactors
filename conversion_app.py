@@ -9,8 +9,6 @@ import os
 import urllib.request
 import urllib.parse
 from bs4 import BeautifulSoup  # type: ignore
-import re
-import base64
 #-m streamlit run conversion_app.py 
 
 # Try to import curl_cffi to bypass Cloudflare's TLS fingerprint blocks
@@ -192,12 +190,6 @@ import unicodedata
 
 def strip_accents(text):
 	return "".join(
-		c for c in unicodedata.normalize("NFKD", text)
-		if not unicodedata.combining(c)
-	)
-
-def strip_accents(text):
-	return "".join(
 		c for c in unicodedata.normalize("NFKD", str(text))
 		if not unicodedata.combining(c)
 	)
@@ -258,19 +250,28 @@ def fetch_html_content(url, headers=None, data=None, method="GET", session=None)
 	# Only spend ScraperAPI credits on RealGM (FEB works directly)
 	if scraperapi_key and "realgm.com" in url and method.upper() == "GET":
 		encoded_url = urllib.parse.quote(url, safe="")
-		api_url = f"https://api.scraperapi.com?api_key={scraperapi_key}&url={encoded_url}"
-		try:
-			req = urllib.request.Request(api_url, method="GET")
-			with urllib.request.urlopen(req, timeout=70) as response:
-				html_text = response.read().decode("utf-8", errors="ignore")
-				final_url = response.headers.get("Sa-Final-Url", url)
-				if "/Summary/" not in final_url:
-					m = re.search(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html_text)
-					if m and "/Summary/" in m.group(1):
-						final_url = m.group(1)
-				return html_text, final_url, None
-		except Exception as e:
-			scraper_err = str(e)
+		attempts = [
+			f"https://api.scraperapi.com/?api_key={scraperapi_key}&url={encoded_url}&render=true",
+			f"https://api.scraperapi.com/?api_key={scraperapi_key}&url={encoded_url}&render=true&premium=true",
+		]
+		for api_url in attempts:
+			try:
+				req = urllib.request.Request(api_url, method="GET")
+				with urllib.request.urlopen(req, timeout=75) as response:
+					html_text = response.read().decode("utf-8", errors="ignore")
+					if "Just a moment..." in html_text or "Enable JavaScript and cookies to continue" in html_text:
+						scraper_err = "Cloudflare challenge page returned"
+						continue
+					final_url = response.headers.get("Sa-Final-Url", url)
+					if "/Summary/" not in final_url:
+						m = re.search(r'<link[^>]+rel=["\']canonical["\'][^>]+href=["\']([^"\']+)["\']', html_text)
+						if m and "/Summary/" in m.group(1):
+							final_url = m.group(1)
+					return html_text, final_url, None
+			except Exception as e:
+				scraper_err = str(e)
+				if getattr(e, "code", None) not in (500, 502, 503, 504):
+					break
 
 	# --- Direct connection (used for FEB and local fallback) ---
 	if curl_requests:
@@ -975,9 +976,9 @@ def auto_detect_situational_modifiers(stats, yob, height, gp, orig_league_name, 
 		suggested.append("Spacing Liability")
 
 	# 5. FTR / Whistle Tax (Standard FTR = FTA/FGA > 0.40, Tier 6/7 to Tier 5)
-	fta = stats.get("FTA", 0.0)
+	fta = stats.get("FTm", 0.0)
 	fga = stats.get("FGA", 0.0)
-	raw_ftr = fta / fga if fga > 0 else 0.0
+	raw_ftr = ftm / fga if fga > 0 else 0.0
 	if raw_ftr > 0.40 and orig_tier >= 6.0 and dest_tier <= 5.0:
 		suggested.append("FTR / Whistle Tax")
 
@@ -1105,12 +1106,6 @@ def parse_and_apply_manual_stats():
 		st.session_state.data_version += 1  # Force data editor refresh
 		st.session_state.manual_parse_success = "Successfully parsed and updated active statistics!"
   
-@st.cache_data(ttl=3600, show_spinner=False)
-def _cached_realgm_get(url):
-	html_text, final_url, err = fetch_html_content(url)
-	if err or not html_text:
-		raise RuntimeError(err or "Empty response")
-	return html_text, final_url
 
 @st.cache_data(ttl=3600, show_spinner=False)
 def _cached_realgm_get(url):
@@ -1379,61 +1374,7 @@ def load_local_player_pool(csv_path="player_pool.csv"):
 	if not os.path.exists(csv_path):
 		return pd.DataFrame()
 	return pd.read_csv(csv_path)
-
-def load_pool_player_into_state(row_dict, dest_league_choice, target_role_choice, target_min_choice):
-	mapped_stats = {
-		"MIN": float(row_dict.get("MIN", 20.0)),
-		"PTS": float(row_dict.get("PTS", 0.0)),
-		"FGM": float(row_dict.get("FGM", 0.0)),
-		"FGA": float(row_dict.get("FGA", 0.0)),
-		"FG%": float(row_dict.get("FG%", 0.0)),
-		"3PM": float(row_dict.get("3PM", 0.0)),
-		"3PA": float(row_dict.get("3PA", 0.0)),
-		"3P%": float(row_dict.get("3P%", 0.0)),
-		"FTM": float(row_dict.get("FTM", 0.0)),
-		"FTA": float(row_dict.get("FTA", 0.0)),
-		"FT%": float(row_dict.get("FT%", 0.0)),
-		"OFF": float(row_dict.get("OFF", 0.0)),
-		"DEF": float(row_dict.get("DEF", 0.0)),
-		"TRB": float(row_dict.get("TRB", 0.0)),
-		"AST": float(row_dict.get("AST", 0.0)),
-		"STL": float(row_dict.get("STL", 0.0)),
-		"BLK": float(row_dict.get("BLK", 0.0)),
-		"TOV": float(row_dict.get("TOV", 0.0)),
-		"PF": float(row_dict.get("PF", 2.0)),
-	}
-	gp_v = max(1, int(row_dict.get("GP", 20)))
-	shooting_ci = calculate_career_shooting_ci(None, mapped_stats, gp_v, source="Pool")
-	st.session_state.shooting_ci = shooting_ci
-	st.session_state.shooting_debug = shooting_ci["debug"]
-	st.session_state.imported_history = []
-
-	st.session_state.raw_stats = mapped_stats
-	st.session_state.p_player_name = str(row_dict["Player"])
-	st.session_state.t_player_name = str(row_dict["Player"])
-	st.session_state.p_orig_team = str(row_dict["Team"])
-	st.session_state.t_orig_team = str(row_dict["Team"])
-	st.session_state.p_yob = int(row_dict["YOB"])
-	st.session_state.t_yob = int(row_dict["YOB"])
-	st.session_state.p_height = int(row_dict["Height"])
-	st.session_state.t_height = int(row_dict["Height"])
-	st.session_state.p_gp = gp_v
-	st.session_state.t_gp = gp_v
-	st.session_state.p_position = str(row_dict["Position"])
-	st.session_state.t_position = str(row_dict["Position"])
-	st.session_state.p_orig_league_name = str(row_dict["Origin League"])
-	st.session_state.t_orig_league_name = str(row_dict["Origin League"])
-	st.session_state.p_dest_league_name = dest_league_choice
-	st.session_state.t_dest_league_name = dest_league_choice
-	st.session_state.p_target_role = target_role_choice
-	st.session_state.t_target_role = target_role_choice
-	st.session_state.p_target_min = float(target_min_choice)
-	st.session_state.t_target_min = float(target_min_choice)
-	st.session_state.p_selected_modifiers = []
-	st.session_state.t_selected_modifiers = []
-	st.session_state.data_version += 1
 	
-
 def parse_feb_player_profile(url):
 	url = url.strip()
 	# Convert www.feb.es/competiciones/... wrapper URLs to the direct baloncestoenvivo.feb.es ASP.NET page
@@ -1585,58 +1526,58 @@ def get_country_system(league_name):
 		return league_name.split(" (")[0]
 	return league_name.split(" ")[0]
 def load_pool_player_into_state(row_dict, dest_league_choice, target_role_choice, target_min_choice):
-    mapped_stats = {
-        "MIN": float(row_dict.get("MIN", 20.0)),
-        "PTS": float(row_dict.get("PTS", 0.0)),
-        "FGM": float(row_dict.get("FGM", 0.0)),
-        "FGA": float(row_dict.get("FGA", 0.0)),
-        "FG%": float(row_dict.get("FG%", 0.0)),
-        "3PM": float(row_dict.get("3PM", 0.0)),
-        "3PA": float(row_dict.get("3PA", 0.0)),
-        "3P%": float(row_dict.get("3P%", 0.0)),
-        "FTM": float(row_dict.get("FTM", 0.0)),
-        "FTA": float(row_dict.get("FTA", 0.0)),
-        "FT%": float(row_dict.get("FT%", 0.0)),
-        "OFF": float(row_dict.get("OFF", 0.0)),
-        "DEF": float(row_dict.get("DEF", 0.0)),
-        "TRB": float(row_dict.get("TRB", 0.0)),
-        "AST": float(row_dict.get("AST", 0.0)),
-        "STL": float(row_dict.get("STL", 0.0)),
-        "BLK": float(row_dict.get("BLK", 0.0)),
-        "TOV": float(row_dict.get("TOV", 0.0)),
-        "PF": float(row_dict.get("PF", 2.0)),
-    }
-    gp_v = max(1, int(row_dict.get("GP", 20)))
-    shooting_ci = calculate_career_shooting_ci(None, mapped_stats, gp_v, source="Pool")
-    st.session_state.shooting_ci = shooting_ci
-    st.session_state.shooting_debug = shooting_ci["debug"]
-    st.session_state.imported_history = []
+	mapped_stats = {
+		"MIN": float(row_dict.get("MIN", 20.0)),
+		"PTS": float(row_dict.get("PTS", 0.0)),
+		"FGM": float(row_dict.get("FGM", 0.0)),
+		"FGA": float(row_dict.get("FGA", 0.0)),
+		"FG%": float(row_dict.get("FG%", 0.0)),
+		"3PM": float(row_dict.get("3PM", 0.0)),
+		"3PA": float(row_dict.get("3PA", 0.0)),
+		"3P%": float(row_dict.get("3P%", 0.0)),
+		"FTM": float(row_dict.get("FTM", 0.0)),
+		"FTA": float(row_dict.get("FTA", 0.0)),
+		"FT%": float(row_dict.get("FT%", 0.0)),
+		"OFF": float(row_dict.get("OFF", 0.0)),
+		"DEF": float(row_dict.get("DEF", 0.0)),
+		"TRB": float(row_dict.get("TRB", 0.0)),
+		"AST": float(row_dict.get("AST", 0.0)),
+		"STL": float(row_dict.get("STL", 0.0)),
+		"BLK": float(row_dict.get("BLK", 0.0)),
+		"TOV": float(row_dict.get("TOV", 0.0)),
+		"PF": float(row_dict.get("PF", 2.0)),
+	}
+	gp_v = max(1, int(row_dict.get("GP", 20)))
+	shooting_ci = calculate_career_shooting_ci(None, mapped_stats, gp_v, source="Pool")
+	st.session_state.shooting_ci = shooting_ci
+	st.session_state.shooting_debug = shooting_ci["debug"]
+	st.session_state.imported_history = []
 
-    st.session_state.raw_stats = mapped_stats
-    st.session_state.p_player_name = str(row_dict["Player"])
-    st.session_state.t_player_name = str(row_dict["Player"])
-    st.session_state.p_orig_team = str(row_dict["Team"])
-    st.session_state.t_orig_team = str(row_dict["Team"])
-    st.session_state.p_yob = int(row_dict["YOB"])
-    st.session_state.t_yob = int(row_dict["YOB"])
-    st.session_state.p_height = int(row_dict["Height"])
-    st.session_state.t_height = int(row_dict["Height"])
-    st.session_state.p_gp = gp_v
-    st.session_state.t_gp = gp_v
-    st.session_state.p_position = str(row_dict["Position"])
-    st.session_state.t_position = str(row_dict["Position"])
-    st.session_state.p_orig_league_name = str(row_dict["Origin League"])
-    st.session_state.t_orig_league_name = str(row_dict["Origin League"])
-    st.session_state.p_dest_league_name = dest_league_choice
-    st.session_state.t_dest_league_name = dest_league_choice
-    st.session_state.p_target_role = target_role_choice
-    st.session_state.t_target_role = target_role_choice
-    st.session_state.p_target_min = float(target_min_choice)
-    st.session_state.t_target_min = float(target_min_choice)
-    st.session_state.p_selected_modifiers = []
-    st.session_state.t_selected_modifiers = []
-    st.session_state.data_version += 1
-    
+	st.session_state.raw_stats = mapped_stats
+	st.session_state.p_player_name = str(row_dict["Player"])
+	st.session_state.t_player_name = str(row_dict["Player"])
+	st.session_state.p_orig_team = str(row_dict["Team"])
+	st.session_state.t_orig_team = str(row_dict["Team"])
+	st.session_state.p_yob = int(row_dict["YOB"])
+	st.session_state.t_yob = int(row_dict["YOB"])
+	st.session_state.p_height = int(row_dict["Height"])
+	st.session_state.t_height = int(row_dict["Height"])
+	st.session_state.p_gp = gp_v
+	st.session_state.t_gp = gp_v
+	st.session_state.p_position = str(row_dict["Position"])
+	st.session_state.t_position = str(row_dict["Position"])
+	st.session_state.p_orig_league_name = str(row_dict["Origin League"])
+	st.session_state.t_orig_league_name = str(row_dict["Origin League"])
+	st.session_state.p_dest_league_name = dest_league_choice
+	st.session_state.t_dest_league_name = dest_league_choice
+	st.session_state.p_target_role = target_role_choice
+	st.session_state.t_target_role = target_role_choice
+	st.session_state.p_target_min = float(target_min_choice)
+	st.session_state.t_target_min = float(target_min_choice)
+	st.session_state.p_selected_modifiers = []
+	st.session_state.t_selected_modifiers = []
+	st.session_state.data_version += 1
+	
 def run_projection_engine(
 	raw_stats, origin_league, dest_league, target_role_mod, position,
 	yob, height, age_mod, height_mod_reb, height_mod_2p,
@@ -2333,10 +2274,6 @@ else:
 			badges.append("👻 Non-Shooter")
 		if position != "Bigs (C/PF)" and pts36 >= 14.0 and ast36 < 1.6:
 			badges.append("🕳️ Tunnel Vision")
-			
-		# 4. ✅ Efficient (Guarded by shooting volume to prevent small-sample-size anomalies)
-		if has_shooting_volume and proj.get("2P%", 0) > 0.55 and proj.get("3P%", 0) > 0.35:
-			badges.append("✅ Efficient")
 		st_badges_str = ", ".join(badges) if badges else "None"
 		if proj["VAL"] >= 18.0:   stars_str = "⭐⭐⭐⭐⭐ (MVP / Elite)"
 		elif proj["VAL"] >= 14.0: stars_str = "⭐⭐⭐⭐ (All-League)"
@@ -2365,34 +2302,28 @@ else:
 			
 			with subcol_profile:
 				st.markdown("##### Player Profile")
-				player_name_widget = st.text_input("Player Name", value=st.session_state.p_player_name, key="t_player_name")
+				player_name_widget = st.text_input("Player Name", key="t_player_name")
 				st.session_state.p_player_name = player_name_widget
 
-				orig_team_widget = st.text_input("Current Team / School", value=st.session_state.p_orig_team, key="t_orig_team")
+				orig_team_widget = st.text_input("Current Team / School", key="t_orig_team")
 				st.session_state.p_orig_team = orig_team_widget
 				
 				# ---> NEW TEAM QUALITY DROPDOWN <---
 				options_team_qual = ["Top of League / Contender", "Mid-Table (Default)", "Bottom / Relegation"]
 				idx_qual = options_team_qual.index(st.session_state.p_orig_team_quality) if st.session_state.p_orig_team_quality in options_team_qual else 1
 				st.markdown("<div style='font-weight: 700; color: #E63946; font-size: 14px; margin-top: 12px; margin-bottom: 4px;'>Origin Team Quality</div>", unsafe_allow_html=True)
-				orig_team_qual_widget = st.selectbox(
-					"Origin Team Quality",
-					options_team_qual,
-					index=idx_qual,
-					key="t_orig_team_quality",
-					label_visibility="collapsed"
-				)
+				orig_team_qual_widget = st.selectbox("Origin Team Quality", options_team_qual, key="t_orig_team_quality", label_visibility="collapsed")
 				st.session_state.p_orig_team_quality = orig_team_qual_widget
 
-				yob_widget = st.number_input("Year of Birth", min_value=1970, max_value=2015, value=int(st.session_state.p_yob), step=1, key="t_yob")
+				yob_widget = st.number_input("Year of Birth", min_value=1970, max_value=2015, step=1, key="t_yob")
 
-				height_widget = st.number_input("Height (cm)", min_value=0, max_value=230, value=int(st.session_state.p_height), step=1, key="t_height")
+				height_widget = st.number_input("Height (cm)", min_value=0, max_value=230, step=1, key="t_height")
 				st.session_state.p_height = height_widget
 				
 				if st.session_state.p_height == 0:
 					st.warning("⚠️ Height not detected. Please enter it manually for accurate projections.")
 
-				gp_widget = st.number_input("Games Played (GP)", min_value=1, max_value=100, value=int(st.session_state.p_gp), step=1, key="t_gp")
+				gp_widget = st.number_input("Games Played (GP)", min_value=1, max_value=100, step=1, key="t_gp")
 				st.session_state.p_gp = gp_widget
 				
 				# Highlighted Position Profile Selectbox
@@ -2402,13 +2333,7 @@ else:
 				)
 				options_pos = ["Slashers/PGs", "Shooters (SG/SF)", "Bigs (C/PF)", "Slashers / D(Non-Shooters)"]
 				idx_pos = options_pos.index(st.session_state.p_position) if st.session_state.p_position in options_pos else 0
-				position_widget = st.selectbox(
-					"Position Profile", 
-					options_pos,
-					index=idx_pos,
-					key="t_position",
-					label_visibility="collapsed"
-				)
+				position_widget = st.selectbox("Position Profile", options_pos, key="t_position", label_visibility="collapsed")
 				st.session_state.p_position = position_widget
 				
 				st.markdown("---")
@@ -2418,12 +2343,7 @@ else:
 				# Resolve the default index dynamically so that programmatic changes are reflected
 				default_conf_idx = conf_options.index(st.session_state.t_ncaa_conference) if st.session_state.get("t_ncaa_conference") in conf_options else 0
 				
-				selected_conf = st.selectbox(
-					"Search NCAA Conference:", 
-					conf_options,
-					index=default_conf_idx,
-					key="t_ncaa_conference"  # <-- Linked to state key
-				)
+				selected_conf = st.selectbox("Search NCAA Conference:", conf_options, key="t_ncaa_conference")
 				
 				if selected_conf != "Search Conference...":
 					mapped_tier = NCAA_CONFERENCE_MAPPING[selected_conf]
@@ -2439,13 +2359,7 @@ else:
 				)
 				options_orig = list(leagues_df["League"].unique())
 				idx_orig = options_orig.index(st.session_state.p_orig_league_name) if st.session_state.p_orig_league_name in options_orig else 0
-				orig_league_widget = st.selectbox(
-					"Original League", 
-					options_orig, 
-					index=idx_orig,
-					key="t_orig_league_name",
-					label_visibility="collapsed"
-				)
+				orig_league_widget = st.selectbox("Original League", options_orig, key="t_orig_league_name", label_visibility="collapsed")
 				st.session_state.p_orig_league_name = orig_league_widget
 				
 				# Highlighted Destination League Selectbox
@@ -2455,13 +2369,8 @@ else:
 				)
 				options_dest = list(leagues_df["League"].unique())
 				idx_dest = options_dest.index(st.session_state.p_dest_league_name) if st.session_state.p_dest_league_name in options_dest else 0
-				dest_league_widget = st.selectbox(
-					"Destination League", 
-					options_dest, 
-					index=idx_dest,
-					key="t_dest_league_name",
-					label_visibility="collapsed"
-				)
+				dest_league_widget = st.selectbox("Destination League", options_dest, key="t_dest_league_name", label_visibility="collapsed")
+
 				st.session_state.p_dest_league_name = dest_league_widget
 				
 				# Resolve destination league dynamic confidence parameters safely inside this block
@@ -2476,37 +2385,19 @@ else:
 				)
 				options_role = ["A (Franchise Player)", "B (Core Starter)", "C (Rotation Player)", "D (Glue / Specialist)"]
 				idx_role = options_role.index(st.session_state.p_target_role) if st.session_state.p_target_role in options_role else 0
-				target_role_widget = st.selectbox(
-					"Target Role Profile", 
-					options_role, 
-					index=idx_role,
-					key="t_target_role",
-					label_visibility="collapsed"
-				)
+				target_role_widget = st.selectbox("Target Role Profile", options_role, key="t_target_role", label_visibility="collapsed")
+
 				st.session_state.p_target_role = target_role_widget
 				
 				st.markdown(
 					"<div style='font-weight: 700; color: #E63946; font-size: 14px; margin-top: 12px; margin-bottom: 4px;'>Expected Played Minutes (Min) *</div>", 
 					unsafe_allow_html=True
 				)
-				target_min_widget = st.slider(
-				"Expected Played Minutes (Min)", 
-				5.0, 
-				40.0, 
-				value=float(st.session_state.p_target_min), 
-				step=0.5, 
-				key="t_target_min",
-				label_visibility="collapsed"
-				)
+				target_min_widget = st.slider("Expected Played Minutes (Min)", 5.0, 40.0, step=0.5, key="t_target_min", label_visibility="collapsed")
 				st.session_state.p_target_min = target_min_widget
 				
 				# Prominent Active Situational Modifiers placed in context setup
-				selected_modifiers_widget = st.multiselect(
-					"Active Situational Modifiers",
-					options=list(SITUATIONAL_MODIFIERS.keys()),
-					default=st.session_state.p_selected_modifiers,
-					key="t_selected_modifiers"
-				)
+				selected_modifiers_widget = st.multiselect("Active Situational Modifiers", options=list(SITUATIONAL_MODIFIERS.keys()), key="t_selected_modifiers")
 				st.session_state.p_selected_modifiers = selected_modifiers_widget
 				
 				# Live dynamic Auto-Scout recommendations
@@ -2599,7 +2490,6 @@ else:
 			st.markdown("---")
 			with st.expander("Model Calibration (Advanced)", expanded=False):
 				st.caption(f"Fine-tune model mathematical weights and statistical variability boundaries. Data Confidence Score (CS): **{dest_cs}**.")
-				role_mod_widget = st.slider("Role Multiplier Scale", 0.80, 1.30, step=0.05, key="role_mod")
 				
 				# Resolve the exact same dynamic key
 				slider_key = f"var_slider_{orig_league_name}_{dest_league_name}".replace(" ", "_").replace("(", "").replace(")", "")
@@ -2728,7 +2618,7 @@ else:
 					row_index = row_labels.index(selected_row_label)
 					selected_row = df.iloc[row_index]
 					
-					p_name = search_query if search_query else "Selected Player"
+					p_name = profile.get("player_name") or (search_query if (search_query and not search_query.startswith("http")) else "Selected Player")
 					if st.session_state.search_results and not st.session_state.search_results.get("direct_match"):
 						if 'selected_index' in locals() and selected_index is not None:
 							p_name = results["results"][selected_index]["name"]
@@ -2884,7 +2774,7 @@ else:
 			
 		# Explicitly show that the role mult has been overridden to 1.00
 		if is_defensive_glue:
-			mod_strings.append("Defensive Glue (Role Mult forced to 1.00)")
+			mod_strings.append("Defensive Glue (Role Mult capped ≤ 1.00)")
 		
 		mods_display = " | ".join(mod_strings) if mod_strings else "None Active"
 		# --- DYNAMIC STYLING FOR DIAGNOSTIC VALUES ---
@@ -3091,6 +2981,34 @@ else:
 				st.write(f"**Player Badges:** `{st_badges_str}`")
 				st.write(f"**Target Impact Rating:** `{stars_str} (Base VAL: {proj['VAL']})`")
 		st.markdown("---")
+		with st.expander("🏅 Player Badges Guide (What Each Badge Means)", expanded=False):
+			b_col1, b_col2 = st.columns(2)
+			with b_col1:
+				st.markdown("**🟢 Strengths & Archetypes (Per-36 Rates)**")
+				st.markdown(
+					"- 🎯 **Sniper:** `≥36%` 3P on `≥4.5` 3PA/36 *(min. 25 career 3PA)*\n"
+					"- 💎 **Automatic FT:** `≥80%` FT *(min. 20 FTA)*\n"
+					"- ✅ **High Efficiency:** Projected True Shooting `≥58%` *(min. 7 FGA/36)*\n"
+					"- 🔥 **Microwave Scorer:** `≥19.0` PTS per 36 min\n"
+					"- ⚡ **Foul Magnet:** Oliver FTR (`FTM/FGA`) `≥0.38` & `≥4.5` FTA/36\n"
+					"- 🧠 **Floor General / Playmaker:** `≥5.0` AST/36 with `≥1.8` AST/TO (`≥4.5` AST/36 for Playmaker)\n"
+					"- 🦊 **Ball Hawk:** `≥2.0` STL per 36 min\n"
+					"- 🛡️ **Rim Protector:** `≥1.5` BLK per 36 min\n"
+					"- 💪 **Glass Cleaner:** `≥9.0` REB per 36 min\n"
+					"- 🐗 **Offensive Glass:** `≥2.8` ORB per 36 min\n"
+					"- 📏 **3&D Wing:** Perimeter player with `≥35%` 3P (`≥25` 3PA) + `≥1.5` STL/36 or `≥0.7` BLK/36\n"
+					"- 🦄 **Stretch Big:** Big (`C/PF`) with `≥33%` 3P & `≥2.5` 3PA/36"
+				)
+			with b_col2:
+				st.markdown("**🔴 Weaknesses & Red Flags**")
+				st.markdown(
+					"- ⚠️ **Low Efficiency:** Projected True Shooting `<49%` on `≥8.0` FGA/36\n"
+					"- 💨 **Turnover Prone:** `≥3.2` TO/36 *(or `AST/TO <0.85` with `≥2.2` TO/36)*\n"
+					"- 🚨 **Foul Prone:** `≥4.8` personal fouls per 40 min\n"
+					"- 🧱 **FT Liability:** `<58%` FT *(min. 15 FTA)*\n"
+					"- 👻 **Non-Shooter:** Perimeter player `<27%` 3P or `<1.5` 3PA/36\n"
+					"- 🕳️ **Tunnel Vision:** Non-Big scoring `≥14.0` PTS/36 with `<1.6` AST/36"
+				)
 		st.subheader("Auto-Detected Context Rules")
 		
 		warnings = 0
@@ -3417,16 +3335,18 @@ else:
 				ps_role = st.selectbox("Projected Role", ["A (Franchise Player)", "B (Core Starter)", "C (Rotation Player)", "D (Glue / Specialist)"], index=1, key="ps_role")
 				ps_min = st.slider("Target Minutes", 10.0, 36.0, 24.0, step=1.0, key="ps_min")
 			with f3:
-				ps_min_ht = st.number_input("Min Height (cm) [0 = include unknown]", 0, 225, 0, step=1, key="ps_min_ht")
+				ps_min_ht = st.number_input("Min Height (cm)", 0, 225, 0, step=1, key="ps_min_ht")
+				ps_inc_unknown_ht = st.checkbox("Include unknown height (RealGM pools)", value=True, key="ps_inc_unknown_ht")
 				ps_max_age = st.slider("Max Age", 18, 40, 27, step=1, key="ps_max_age")
 				ps_min_gp = st.number_input("Min Games Played", 1, 50, 15, step=1, key="ps_min_gp")
 				ps_exclude_high_risk = st.checkbox("Exclude High-Risk Players (Risk ≥ 3.5)", value=True, key="ps_no_high_risk")
 
 			if st.button("🔎 Find Top 5 Fits", type="primary", key="run_proactive_btn"):
 				d_row = leagues_df[leagues_df["League"] == ps_dest].iloc[0]
+				ht_cond = (pool_df["Height"] >= ps_min_ht) | (pool_df["Height"] == 0) if ps_inc_unknown_ht else (pool_df["Height"] >= ps_min_ht)
 				filtered = pool_df[
 					(pool_df["Origin League"].isin(ps_origins))
-					& (pool_df["Height"] >= ps_min_ht)
+					& ht_cond
 					& ((2026 - pool_df["YOB"]) <= ps_max_age)
 					& (pool_df["GP"] >= ps_min_gp)
 				].copy()
