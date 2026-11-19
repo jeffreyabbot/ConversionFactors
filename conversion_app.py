@@ -1374,7 +1374,59 @@ def load_feb_row_into_state(df_row, player_name, height_cm, yob, team_name, gp, 
 	st.session_state.t_selected_modifiers = []
 	st.session_state.data_version += 1
 
+def load_pool_player_into_state(row_dict, dest_league_choice, target_role_choice, target_min_choice):
+	mapped_stats = {
+		"MIN": float(row_dict.get("MIN", 20.0)),
+		"PTS": float(row_dict.get("PTS", 0.0)),
+		"FGM": float(row_dict.get("FGM", 0.0)),
+		"FGA": float(row_dict.get("FGA", 0.0)),
+		"FG%": float(row_dict.get("FG%", 0.0)),
+		"3PM": float(row_dict.get("3PM", 0.0)),
+		"3PA": float(row_dict.get("3PA", 0.0)),
+		"3P%": float(row_dict.get("3P%", 0.0)),
+		"FTM": float(row_dict.get("FTM", 0.0)),
+		"FTA": float(row_dict.get("FTA", 0.0)),
+		"FT%": float(row_dict.get("FT%", 0.0)),
+		"OFF": float(row_dict.get("OFF", 0.0)),
+		"DEF": float(row_dict.get("DEF", 0.0)),
+		"TRB": float(row_dict.get("TRB", 0.0)),
+		"AST": float(row_dict.get("AST", 0.0)),
+		"STL": float(row_dict.get("STL", 0.0)),
+		"BLK": float(row_dict.get("BLK", 0.0)),
+		"TOV": float(row_dict.get("TOV", 0.0)),
+		"PF": float(row_dict.get("PF", 2.0)),
+	}
+	gp_v = max(1, int(row_dict.get("GP", 20)))
+	shooting_ci = calculate_career_shooting_ci(None, mapped_stats, gp_v, source="Pool")
+	st.session_state.shooting_ci = shooting_ci
+	st.session_state.shooting_debug = shooting_ci["debug"]
+	st.session_state.imported_history = []
 
+	st.session_state.raw_stats = mapped_stats
+	st.session_state.p_player_name = str(row_dict["Player"])
+	st.session_state.t_player_name = str(row_dict["Player"])
+	st.session_state.p_orig_team = str(row_dict["Team"])
+	st.session_state.t_orig_team = str(row_dict["Team"])
+	st.session_state.p_yob = int(row_dict["YOB"])
+	st.session_state.t_yob = int(row_dict["YOB"])
+	st.session_state.p_height = int(row_dict["Height"])
+	st.session_state.t_height = int(row_dict["Height"])
+	st.session_state.p_gp = gp_v
+	st.session_state.t_gp = gp_v
+	st.session_state.p_position = str(row_dict["Position"])
+	st.session_state.t_position = str(row_dict["Position"])
+	st.session_state.p_orig_league_name = str(row_dict["Origin League"])
+	st.session_state.t_orig_league_name = str(row_dict["Origin League"])
+	st.session_state.p_dest_league_name = dest_league_choice
+	st.session_state.t_dest_league_name = dest_league_choice
+	st.session_state.p_target_role = target_role_choice
+	st.session_state.t_target_role = target_role_choice
+	st.session_state.p_target_min = float(target_min_choice)
+	st.session_state.t_target_min = float(target_min_choice)
+	st.session_state.p_selected_modifiers = []
+	st.session_state.t_selected_modifiers = []
+	st.session_state.data_version += 1
+	
 @st.cache_data(ttl=3600, show_spinner=False)
 def parse_feb_player_profile(url):
 	url = url.strip()
@@ -2360,11 +2412,12 @@ else:
 		st.error(f"Calculation Error: {e}")
 
 	# 2. Render Tab Structure
-	tab_stats_editor, tab_projections, tab_rules_warnings, tab_backtest = st.tabs([
+	tab_stats_editor, tab_projections, tab_rules_warnings, tab_backtest, tab_proactive = st.tabs([
 		"Raw Statistics Editor and Settings",
 		"Performance Projections",
 		"Context Rules and Warnings",
-		"League Backtest & Calibration"
+		"League Backtest & Calibration",
+		"Proactive Scout (Top 5 Finder)"
 	])
 	# ----------------- TAB 1: RAW STATISTICS EDITOR & SETTINGS -----------------
 	with tab_stats_editor:
@@ -3360,3 +3413,155 @@ else:
 						st.dataframe(dest_grp.round(2), use_container_width=True, hide_index=True)
 			except Exception as bt_err:
 				st.error(f"Could not process Backtest CSV: {bt_err}")
+	# ----------------- TAB 5: PROACTIVE SCOUT (TOP 5 FINDER) -----------------
+	with tab_proactive:
+		st.markdown("### Proactive Scout: Top 5 Player Recommender")
+		st.caption("Define your team's need and realistic feeder market—the engine projects the entire player pool and ranks the Top 5 fits.")
+
+		pool_df = None
+		if os.path.exists("player_pool.csv"):
+			pool_df = pd.read_csv("player_pool.csv")
+		uploaded_pool = st.file_uploader("Optional: Upload Custom Player Pool CSV (overrides player_pool.csv)", type=["csv"], key="proactive_pool_upload")
+		if uploaded_pool is not None:
+			pool_df = pd.read_csv(uploaded_pool)
+
+		if pool_df is None or pool_df.empty:
+			st.info("No `player_pool.csv` found yet. Run `python build_player_pool.py` to generate the NCAA D1 pool, or upload a formatted CSV.")
+		else:
+			st.success(f"Player Pool Loaded: **{len(pool_df):,}** players across **{pool_df['Origin League'].nunique()}** origin leagues.")
+
+			f1, f2, f3 = st.columns(3)
+			with f1:
+				ps_dest = st.selectbox("Target Destination League", list(leagues_df["League"].unique()), index=list(leagues_df["League"].unique()).index("Spain Segunda FEB"), key="ps_dest")
+				ps_pos = st.selectbox("Target Position", ["All", "Slashers/PGs", "Shooters (SG/SF)", "Bigs (C/PF)", "Slashers / D(Non-Shooters)"], key="ps_pos")
+				ps_need = st.selectbox(
+					"Team Need / Ranking Profile",
+					["Best All-Around Value (Risk-Adjusted VAL)", "Scoring Guard / Shot Creator", "3&D / Perimeter Shooting", "Floor General (Playmaking)", "Rim Protector / Rebounding Big", "Stretch Big"],
+					key="ps_need"
+				)
+			with f2:
+				avail_origins = sorted(pool_df["Origin League"].dropna().unique().tolist())
+				ps_origins = st.multiselect("Allowed Feeder Leagues (Origin Market)", avail_origins, default=avail_origins, key="ps_origins")
+				ps_role = st.selectbox("Projected Role", ["A (Franchise Player)", "B (Core Starter)", "C (Rotation Player)", "D (Glue / Specialist)"], index=1, key="ps_role")
+				ps_min = st.slider("Target Minutes", 10.0, 36.0, 24.0, step=1.0, key="ps_min")
+			with f3:
+				ps_min_ht = st.number_input("Min Height (cm)", 160, 225, 175, step=1, key="ps_min_ht")
+				ps_max_age = st.slider("Max Age", 18, 40, 27, step=1, key="ps_max_age")
+				ps_min_gp = st.number_input("Min Games Played", 1, 50, 15, step=1, key="ps_min_gp")
+				ps_exclude_high_risk = st.checkbox("Exclude High-Risk Players (Risk ≥ 3.5)", value=True, key="ps_no_high_risk")
+
+			if st.button("🔎 Find Top 5 Fits", type="primary", key="run_proactive_btn"):
+				d_row = leagues_df[leagues_df["League"] == ps_dest].iloc[0]
+				filtered = pool_df[
+					(pool_df["Origin League"].isin(ps_origins))
+					& (pool_df["Height"] >= ps_min_ht)
+					& ((2026 - pool_df["YOB"]) <= ps_max_age)
+					& (pool_df["GP"] >= ps_min_gp)
+				].copy()
+
+				if ps_pos != "All":
+					filtered = filtered[filtered["Position"] == ps_pos]
+
+				if filtered.empty:
+					st.warning("No players matched those filters. Try widening Height, Age, or Feeder Leagues.")
+				else:
+					valid_leagues_set = set(leagues_df["League"].values)
+					candidates = []
+
+					with st.spinner(f"Projecting {len(filtered):,} candidates into {ps_dest}..."):
+						for _, r in filtered.iterrows():
+							o_name = str(r["Origin League"])
+							if o_name not in valid_leagues_set:
+								continue
+							o_row = leagues_df[leagues_df["League"] == o_name].iloc[0]
+
+							r_dict = r.to_dict()
+							r_raw = {
+								"MIN": max(1.0, float(r_dict["MIN"])), "PTS": float(r_dict["PTS"]),
+								"FGM": float(r_dict["FGM"]), "FGA": float(r_dict["FGA"]), "FG%": float(r_dict["FG%"]),
+								"3PM": float(r_dict["3PM"]), "3PA": float(r_dict["3PA"]), "3P%": float(r_dict["3P%"]),
+								"FTM": float(r_dict["FTM"]), "FTA": float(r_dict["FTA"]), "FT%": float(r_dict["FT%"]),
+								"OFF": float(r_dict["OFF"]), "DEF": float(r_dict["DEF"]), "TRB": float(r_dict["TRB"]),
+								"AST": float(r_dict["AST"]), "STL": float(r_dict["STL"]), "BLK": float(r_dict["BLK"]),
+								"TOV": float(r_dict["TOV"]), "PF": float(r_dict["PF"]),
+							}
+							r_gp = int(r_dict["GP"])
+							r_yob = int(r_dict["YOB"])
+							r_ht = int(r_dict["Height"])
+							r_pos = str(r_dict["Position"])
+
+							p_out, p_age, _, _, _, _, reb_h, two_h, _, _, _, _ = run_projection_engine(
+								r_raw, o_row, d_row, 1.0, r_pos,
+								r_yob, r_ht, 1.0, 1.0, 1.0,
+								[], ps_min, ps_role, 0.20,
+								"Mid-Table (Default)", shooting_ci=None, gp=r_gp
+							)
+
+							# Lightweight Risk Score matching Tab 3
+							r_pf40 = (r_raw["PF"] / r_raw["MIN"]) * 40.0
+							r_risk = (1.0 if r_pf40 > 5.5 else 0.0) + (1.0 if (reb_h < 1.0 or two_h < 1.0) else 0.0) + (1.0 if r_gp < 12 else 0.0)
+							if (r_raw["3PA"] * r_gp >= 15 and r_raw["FTA"] * r_gp >= 15 and r_gp >= 8):
+								if r_raw["3P%"] > 0.38 and r_raw["FT%"] < 0.65:
+									r_risk += 1.5
+								elif r_raw["3P%"] < 0.32 and r_raw["FT%"] > 0.82:
+									r_risk -= 0.5
+
+							if ps_exclude_high_risk and r_risk >= 3.5:
+								continue
+
+							# Need-Based Fit Score
+							ast_to_r = p_out["AS"] / max(0.5, p_out["TO"])
+							if ps_need == "Scoring Guard / Shot Creator":
+								fit = (p_out["PTS"] * 1.3) + (p_out["AS"] * 0.9) + (p_out["3P%"] * 12.0) - (r_risk * 1.5)
+							elif ps_need == "3&D / Perimeter Shooting":
+								fit = (p_out["3P%_floor"] * 35.0) + (p_out["proj_3pa"] * 1.2) + (p_out["STL"] * 3.0) + (p_out["PTS"] * 0.4) - (r_risk * 1.5)
+							elif ps_need == "Floor General (Playmaking)":
+								fit = (p_out["AS"] * 2.5) + (ast_to_r * 2.0) + (p_out["VAL"] * 0.4) - (r_risk * 1.5)
+							elif ps_need == "Rim Protector / Rebounding Big":
+								fit = (p_out["REB"] * 1.4) + (p_out["BLK"] * 3.5) + (p_out["2P%"] * 12.0) + ((r_ht - 195) * 0.25) - (r_risk * 1.5)
+							elif ps_need == "Stretch Big":
+								fit = (p_out["3P%_floor"] * 30.0) + (p_out["REB"] * 1.0) + (p_out["PTS"] * 0.6) + ((r_ht - 195) * 0.2) - (r_risk * 1.5)
+							else:
+								fit = p_out["VAL"] - (r_risk * 1.5)
+
+							candidates.append({
+								"fit_score": round(fit, 2),
+								"row": r_dict,
+								"proj": p_out,
+								"risk": r_risk,
+								"age": p_age
+							})
+
+					candidates.sort(key=lambda x: x["fit_score"], reverse=True)
+					st.session_state.proactive_top5 = candidates[:5]
+					st.session_state.proactive_meta = (ps_dest, ps_role, ps_min)
+
+			if st.session_state.get("proactive_top5"):
+				top5 = st.session_state.proactive_top5
+				meta_dest, meta_role, meta_min = st.session_state.proactive_meta
+				st.markdown(f"#### Top {len(top5)} Recommended Fits for **{meta_dest}** ({meta_min:.0f} min)")
+
+				for idx, cand in enumerate(top5):
+					r_info = cand["row"]
+					p = cand["proj"]
+					r_badge = "🟢 SAFE" if cand["risk"] < 1.5 else ("🟡 CAUTION" if cand["risk"] < 3.5 else "🔴 HIGH RISK")
+					with st.container(border=True):
+						c_left, c_mid, c_right = st.columns([2.0, 2.5, 1.2])
+						with c_left:
+							st.markdown(f"**#{idx + 1} {r_info['Player']}** ({r_info['Team']})")
+							st.caption(f"{r_info['Origin League']} ({r_info.get('Conference', '')}) | Age {cand['age']} | {r_info['Height']} cm | {r_info['GP']} GP")
+							st.write(f"Fit Score: **`{cand['fit_score']}`** | Risk: `{r_badge} ({cand['risk']:.1f})`")
+						with c_mid:
+							st.markdown(
+								f"**Projected ({meta_min:.0f} min):** "
+								f"`{p['PTS']} PTS` | `{p['REB']} REB` | `{p['AS']} AST` | `{p['STL']} STL` | `{p['BLK']} BLK` | **`VAL {p['VAL']}`**\n\n"
+								f"**Wilson Splits:** `2P {p['2P%']*100:.1f}%` | `3P {p['3P%']*100:.1f}%` | `FT {p['FT%']*100:.1f}%`"
+							)
+						with c_right:
+							st.button(
+								"🔎 Load into Workspace",
+								key=f"load_top5_{idx}_{r_info['Player']}",
+								on_click=load_pool_player_into_state,
+								args=(r_info, meta_dest, meta_role, meta_min),
+								use_container_width=True
+							)
