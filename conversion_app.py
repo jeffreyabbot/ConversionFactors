@@ -1694,11 +1694,23 @@ def run_projection_engine(
 	league_reb_ratio = origin_league["Rebounds"] / dest_league["Rebounds"]
 	pos_reb_adjustment = 1.15 if position == "Bigs (C/PF)" else (0.90 if ("PG" in position or "Slasher" in position) else 1.0)
 	pos_reb = league_reb_ratio * pos_reb_adjustment * rebound_height_modifier
+
+	league_ast_ratio = origin_league["Rate"] / dest_league["Rate"]
+	if position == "Slashers/PGs":
+		pos_ast_adjustment = 1.05
+	elif position == "Slashers / D(Non-Shooters)":
+		pos_ast_adjustment = 0.96
+	elif position == "Shooters (SG/SF)":
+		pos_ast_adjustment = 0.92
+	else:  # Bigs (C/PF)
+		pos_ast_adjustment = 0.85
+	pos_ast = league_ast_ratio * pos_ast_adjustment
+
 	pace = 0.99 if (origin_tier == 7 and dest_tier == 5) else (dest_league["Pace"] / origin_league["Pace"])
 
 	pts_base = pts10 * pos_pts * pace
 	reb_base = reb10 * pos_reb * pace
-	ast_base = ast10 * pos_pts * pace
+	ast_base = ast10 * pos_ast * pace
 	or_base  = or10 * pos_reb * pace
 	dr_base  = dr10 * pos_reb * pace
 
@@ -1710,6 +1722,8 @@ def run_projection_engine(
 	else:
 		pts_smoothed = pts_base if pts_base <= 2.5 else 2.5 + (pts_base - 2.5) / 2
 		reb_smoothed = reb_base if reb_base <= 2.5 else 2.5 + (reb_base - 2.5) / 2
+
+	ast_smoothed = ast_base if ast_base <= 1.5 else 1.5 + (ast_base - 1.5) / 2
 
 	reb_ratio = reb_smoothed / reb_base if reb_base > 0 else 1.0
 	or_smoothed = or_base * reb_ratio
@@ -1736,7 +1750,7 @@ def run_projection_engine(
 	f_reb10 = reb_smoothed * role_mult * c_mults["REB"] * cont_mult * age_mod
 	f_or10  = or_smoothed  * role_mult * c_mults["OR"]  * cont_mult * age_mod
 	f_dr10  = dr_smoothed  * role_mult * c_mults["DR"]  * cont_mult * age_mod
-	f_ast10 = ast_base     * role_mult * c_mults["AST"] * cont_mult * age_mod
+	f_ast10 = ast_smoothed * role_mult * c_mults["AST"] * cont_mult * age_mod
 
 	# --- STEP 5: SHOOTING WITH WILSON CONFIDENCE INTERVAL ---
 	if shooting_ci is None:
