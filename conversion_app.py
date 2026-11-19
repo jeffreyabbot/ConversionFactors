@@ -3445,7 +3445,7 @@ else:
 				ps_role = st.selectbox("Projected Role", ["A (Franchise Player)", "B (Core Starter)", "C (Rotation Player)", "D (Glue / Specialist)"], index=1, key="ps_role")
 				ps_min = st.slider("Target Minutes", 10.0, 36.0, 24.0, step=1.0, key="ps_min")
 			with f3:
-				ps_min_ht = st.number_input("Min Height (cm)", 160, 225, 175, step=1, key="ps_min_ht")
+				ps_min_ht = st.number_input("Min Height (cm) [0 = include unknown]", 0, 225, 0, step=1, key="ps_min_ht")
 				ps_max_age = st.slider("Max Age", 18, 40, 27, step=1, key="ps_max_age")
 				ps_min_gp = st.number_input("Min Games Played", 1, 50, 15, step=1, key="ps_min_gp")
 				ps_exclude_high_risk = st.checkbox("Exclude High-Risk Players (Risk ≥ 3.5)", value=True, key="ps_no_high_risk")
