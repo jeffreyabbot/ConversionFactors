@@ -2266,33 +2266,85 @@ else:
 		else:
 			risk_badge = f"🟢 SAFE ({total_risk_score:.1f})"
 			
-		# Dynamic Badges Engine
+		# ==========================================
+		# UPGRADED DYNAMIC BADGES ENGINE (PER-36)
+		# ==========================================
 		badges = []
-		
-		# 1. 🎯 Sniper (Relaxed FIBA-aligned criteria: 36% efficiency and 3.5 attempts per game)
-		if proj.get("3P%", 0) >= 0.36 and proj.get("proj_3pa", 0) >= 3.5:
+		t_min = max(1.0, float(target_min))
+		scale36 = 36.0 / t_min
+
+		pts36 = proj.get("PTS", 0.0) * scale36
+		reb36 = proj.get("REB", 0.0) * scale36
+		or36  = proj.get("OR", 0.0) * scale36
+		ast36 = proj.get("AS", 0.0) * scale36
+		to36  = proj.get("TO", 0.0) * scale36
+		stl36 = proj.get("STL", 0.0) * scale36
+		blk36 = proj.get("BLK", 0.0) * scale36
+
+		raw_min = max(1.0, st.session_state.raw_stats.get("MIN", 1.0))
+		fga36 = (st.session_state.raw_stats.get("FGA", 0.0) / raw_min) * 36.0
+		tpa36 = (proj.get("proj_3pa", 0.0)) * scale36
+		fta36 = (st.session_state.raw_stats.get("FTA", 0.0) / raw_min) * 36.0
+
+		n_2p = proj.get("n_2p", int(total_fta))
+		n_3p = proj.get("n_3p", int(total_3pa))
+		n_ft = proj.get("n_ft", int(total_fta))
+
+		# Projected True Shooting % from projected shot mix & Wilson-stabilized percentages
+		raw_fga = max(0.01, st.session_state.raw_stats.get("FGA", 0.0))
+		raw_3pa = st.session_state.raw_stats.get("3PA", 0.0)
+		raw_2pa = max(0.0, raw_fga - raw_3pa)
+		raw_fta = st.session_state.raw_stats.get("FTA", 0.0)
+		exp_pts_cycle = (2.0 * raw_2pa * proj["2P%"]) + (3.0 * raw_3pa * proj["3P%"]) + (raw_fta * proj["FT%"])
+		tsa_cycle = 2.0 * (raw_2pa + raw_3pa + 0.44 * raw_fta)
+		proj_ts = exp_pts_cycle / tsa_cycle if tsa_cycle > 0 else 0.0
+
+		ast_to = ast36 / to36 if to36 > 0 else ast36
+		oliver_ftr = st.session_state.raw_stats.get("FTM", 0.0) / raw_fga
+
+		# --- STRENGTHS ---
+		if gp >= 8 and n_3p >= 25 and proj.get("3P%", 0) >= 0.36 and tpa36 >= 4.5:
 			badges.append("🎯 Sniper")
-			
-		# Define FT volume threshold to protect against small-sample-size noise (15+ total FTA & 8+ GP)
-		has_ft_volume = (total_fta >= 15.0) and (gp >= 8)
-		
-		# 2. Free Throw Badges (Guarded by volume)
-		if has_ft_volume and proj.get("FT%", 0) > 0.80:
-			badges.append("🧊 Ice Cold FT")
-		if has_ft_volume and proj.get("FT%", 0) < 0.50:
-			badges.append("🧱 FT Liability")
-			
-		# 3. Projected Volume-based Badges (Safe by design as they scale with minutes/pace)
-		if proj.get("BLK", 0) > 0.8:
-			badges.append("🛡️ Rim Protector")
-		if proj.get("AS", 0) > 3.5:
+		if gp >= 8 and n_ft >= 20 and proj.get("FT%", 0) >= 0.80:
+			badges.append("💎 Automatic FT")
+		if gp >= 8 and fga36 >= 7.0 and proj_ts >= 0.58:
+			badges.append("✅ High Efficiency")
+		if pts36 >= 19.0:
+			badges.append("🔥 Microwave Scorer")
+		if gp >= 8 and oliver_ftr >= 0.38 and fta36 >= 4.5:
+			badges.append("⚡ Foul Magnet")
+		if ast36 >= 5.0 and ast_to >= 1.8:
+			badges.append("🧠 Floor General")
+		elif ast36 >= 4.5:
 			badges.append("🧠 Playmaker")
-		if proj.get("AS", 0) < 1.0 and proj.get("PTS", 0) > 12.0:
-			badges.append("🛑 Ball-Hog")
-		if proj.get("REB", 0) > 7.0:
+		if stl36 >= 2.0:
+			badges.append("🦊 Ball Hawk")
+		if blk36 >= 1.5:
+			badges.append("🛡️ Rim Protector")
+		if reb36 >= 9.0:
 			badges.append("💪 Glass Cleaner")
-		if proj.get("OR", 0) > 2.0:
-			badges.append("🐗 Offensive Rebounder")
+		if or36 >= 2.8:
+			badges.append("🐗 Offensive Glass")
+
+		# --- ARCHETYPES ---
+		if position in ["Shooters (SG/SF)", "Slashers / D(Non-Shooters)"] and n_3p >= 25 and proj.get("3P%", 0) >= 0.35 and (stl36 >= 1.5 or blk36 >= 0.7):
+			badges.append("📏 3&D Wing")
+		if position == "Bigs (C/PF)" and n_3p >= 20 and proj.get("3P%", 0) >= 0.33 and tpa36 >= 2.5:
+			badges.append("🦄 Stretch Big")
+
+		# --- WEAKNESSES / RED FLAGS ---
+		if gp >= 8 and fga36 >= 8.0 and proj_ts < 0.49:
+			badges.append("⚠️ Low Efficiency")
+		if to36 >= 3.2 or (ast_to < 0.85 and to36 >= 2.2):
+			badges.append("💨 Turnover Prone")
+		if pf_per_40 >= 4.8:
+			badges.append("🚨 Foul Prone")
+		if gp >= 8 and n_ft >= 15 and proj.get("FT%", 0) < 0.58:
+			badges.append("🧱 FT Liability")
+		if position != "Bigs (C/PF)" and gp >= 8 and ((n_3p >= 15 and proj.get("3P%", 0) < 0.27) or tpa36 < 1.5):
+			badges.append("👻 Non-Shooter")
+		if position != "Bigs (C/PF)" and pts36 >= 14.0 and ast36 < 1.6:
+			badges.append("🕳️ Tunnel Vision")
 			
 		# 4. ✅ Efficient (Guarded by shooting volume to prevent small-sample-size anomalies)
 		if has_shooting_volume and proj.get("2P%", 0) > 0.55 and proj.get("3P%", 0) > 0.35:
@@ -2308,10 +2360,11 @@ else:
 		st.error(f"Calculation Error: {e}")
 
 	# 2. Render Tab Structure
-	tab_stats_editor, tab_projections, tab_rules_warnings = st.tabs([
+	tab_stats_editor, tab_projections, tab_rules_warnings, tab_backtest = st.tabs([
 		"Raw Statistics Editor and Settings",
-		"Performance Projections", 
-		"Context Rules and Warnings"
+		"Performance Projections",
+		"Context Rules and Warnings",
+		"League Backtest & Calibration"
 	])
 	# ----------------- TAB 1: RAW STATISTICS EDITOR & SETTINGS -----------------
 	with tab_stats_editor:
@@ -2888,6 +2941,27 @@ else:
 		val_ceil = apply_var(val_base, variability, 1)
 		val_floor = apply_var(val_base, variability, -1)
 
+		# Origin vs. Projected Comparison Strip
+		raw_pts_o = st.session_state.raw_stats.get("PTS", 0.0)
+		raw_reb_o = st.session_state.raw_stats.get("TRB", 0.0)
+		raw_ast_o = st.session_state.raw_stats.get("AST", 0.0)
+		raw_min_o = st.session_state.raw_stats.get("MIN", 0.0)
+		raw_miss_fg = max(0.0, st.session_state.raw_stats.get("FGA", 0.0) - st.session_state.raw_stats.get("FGM", 0.0))
+		raw_miss_ft = max(0.0, st.session_state.raw_stats.get("FTA", 0.0) - st.session_state.raw_stats.get("FTM", 0.0))
+		raw_val_o = round(
+			raw_pts_o + raw_reb_o + raw_ast_o
+			+ st.session_state.raw_stats.get("STL", 0.0) + st.session_state.raw_stats.get("BLK", 0.0)
+			- st.session_state.raw_stats.get("TOV", 0.0) - raw_miss_fg - raw_miss_ft,
+			1
+		)
+
+		st.caption(f"Minutes Comparison: Origin **{raw_min_o:.1f} min** ➔ Projected **{target_min:.1f} min**")
+		m1, m2, m3, m4 = st.columns(4)
+		m1.metric("Projected PTS", f"{pts_base:.1f}", delta=f"{pts_base - raw_pts_o:+.1f} vs origin ({raw_pts_o:.1f})")
+		m2.metric("Projected REB", f"{reb_base:.1f}", delta=f"{reb_base - raw_reb_o:+.1f} vs origin ({raw_reb_o:.1f})")
+		m3.metric("Projected AST", f"{as_base:.1f}", delta=f"{as_base - raw_ast_o:+.1f} vs origin ({raw_ast_o:.1f})")
+		m4.metric("Projected VAL", f"{val_base:.1f}", delta=f"{val_base - raw_val_o:+.1f} vs origin ({raw_val_o:.1f})")
+
 		transposed_rows = [
 			{"Metric": "PTS (Points)", "Floor": f"{pts_floor:.1f}", "BASE PROJECTION": f"{pts_base:.1f}", "Ceiling": f"{pts_ceil:.1f}", "Active Variance": "Skill + Phys"},
 			{"Metric": "REB (Total Rebounds)", "Floor": f"{reb_floor:.1f}", "BASE PROJECTION": f"{reb_base:.1f}", "Ceiling": f"{reb_ceil:.1f}", "Active Variance": f"± {variability*100:.0f}%"},
@@ -3055,5 +3129,234 @@ else:
 		elif calculated_age >= 30:
 			st.warning(f"Dynamic Rule - Early Decline: Player is Age {calculated_age}. A -2% age-related drop-off penalty has been applied to expected volume metrics.")
 			warnings += 1
-   	
+		# Role vs. Minutes Sanity Check
+		if target_role == "A (Franchise Player)" and target_min < 22.0:
+			st.warning(f"Role/Minutes Mismatch: 'A (Franchise Player)' typically plays 24–35 min, but Target Minutes is set to {target_min:.1f} min.")
+			warnings += 1
+		elif target_role == "B (Core Starter)" and (target_min < 18.0 or target_min > 36.0):
+			st.warning(f"Role/Minutes Mismatch: 'B (Core Starter)' typically plays 20–32 min, but Target Minutes is set to {target_min:.1f} min.")
+			warnings += 1
+		elif target_role == "C (Rotation Player)" and (target_min < 10.0 or target_min > 30.0):
+			st.warning(f"Role/Minutes Mismatch: 'C (Rotation Player)' typically plays 12–24 min, but Target Minutes is set to {target_min:.1f} min.")
+			warnings += 1
+		elif target_role == "D (Glue / Specialist)" and target_min > 28.0:
+			st.warning(f"Role/Minutes Mismatch: 'D (Glue / Specialist)' typically plays 8–22 min, but Target Minutes is set to {target_min:.1f} min.")
+			warnings += 1
+
+		if target_role == "A (Franchise Player)" and is_defensive_glue:
+			st.error("Role Contradiction: Target Role is 'A (Franchise Player)', but origin shot volume (<0.20 FGA/min) triggered the Defensive Glue cap.")
+			warnings += 1
+
+		if warnings == 0:
+			st.success("No risk flags or role/minute contradictions detected for this transition.")
 		st.info(f"Volume Safety Variances: [FT Var: {proj['ft_variance']*100:.0f}%]  |  [2P% Var: {proj['twop_variance']*100:.0f}%]  |  [3P% Var: {proj['threep_variance']*100:.0f}%]")
+	# ----------------- TAB 4: HISTORICAL BACKTEST & CALIBRATION -----------------
+	with tab_backtest:
+		st.markdown("### Historical Transfer Backtester & League Drift Calibration")
+		st.caption(
+			"Upload real past transfers to test whether league coefficients (`Rate`) have drifted over time. "
+			"Each transfer is projected using the player's actual destination minutes to isolate pure league-translation accuracy."
+		)
+
+		# Downloadable CSV Template with 2 realistic sample rows
+		sample_backtest_df = pd.DataFrame([
+			{
+				"Player": "Sample Guard A",
+				"Origin League": "Spain Tercera FEB",
+				"Dest League": "Spain Segunda FEB",
+				"Position": "Slashers/PGs",
+				"Target Role": "C (Rotation Player)",
+				"YOB": 2003,
+				"Height": 188,
+				"Modifiers": "",
+				"Orig GP": 26, "Orig MIN": 28.0, "Orig PTS": 14.5,
+				"Orig FGM": 5.0, "Orig FGA": 11.2, "Orig 3PM": 1.8, "Orig 3PA": 5.0,
+				"Orig FTM": 2.7, "Orig FTA": 3.5, "Orig OFF": 0.6, "Orig DEF": 2.8,
+				"Orig TRB": 3.4, "Orig AST": 4.2, "Orig STL": 1.3, "Orig BLK": 0.1,
+				"Orig TOV": 2.1, "Orig PF": 2.0,
+				"Actual Dest MIN": 19.5, "Actual Dest PTS": 7.8, "Actual Dest REB": 2.1, "Actual Dest AST": 2.3
+			},
+			{
+				"Player": "Sample Big B",
+				"Origin League": "NCAA D1 (Mid Major)",
+				"Dest League": "Spain Primera FEB",
+				"Position": "Bigs (C/PF)",
+				"Target Role": "B (Core Starter)",
+				"YOB": 2002,
+				"Height": 205,
+				"Modifiers": "Import Boost, Rookie Pro",
+				"Orig GP": 31, "Orig MIN": 26.5, "Orig PTS": 11.8,
+				"Orig FGM": 4.6, "Orig FGA": 8.4, "Orig 3PM": 0.2, "Orig 3PA": 0.7,
+				"Orig FTM": 2.4, "Orig FTA": 3.4, "Orig OFF": 2.4, "Orig DEF": 4.8,
+				"Orig TRB": 7.2, "Orig AST": 1.1, "Orig STL": 0.6, "Orig BLK": 1.2,
+				"Orig TOV": 1.5, "Orig PF": 2.5,
+				"Actual Dest MIN": 22.0, "Actual Dest PTS": 9.1, "Actual Dest REB": 5.6, "Actual Dest AST": 0.9
+			}
+		])
+
+		st.download_button(
+			label="📥 Download Backtest CSV Template",
+			data=sample_backtest_df.to_csv(index=False).encode("utf-8"),
+			file_name="backtest_transfers_template.csv",
+			mime="text/csv",
+			key="download_backtest_template"
+		)
+
+		uploaded_bt = st.file_uploader(
+			"Upload Completed Transfers CSV",
+			type=["csv"],
+			key="backtest_csv_uploader"
+		)
+
+		if uploaded_bt is not None:
+			try:
+				bt_df = pd.read_csv(uploaded_bt)
+				required_bt_cols = {
+					"Player", "Origin League", "Dest League", "Position",
+					"Orig MIN", "Orig PTS", "Orig FGM", "Orig FGA",
+					"Actual Dest MIN", "Actual Dest PTS", "Actual Dest REB", "Actual Dest AST"
+				}
+				missing_cols = required_bt_cols - set(bt_df.columns)
+				if missing_cols:
+					st.error(f"Missing required columns: {', '.join(sorted(missing_cols))}")
+				else:
+					valid_leagues = set(leagues_df["League"].values)
+					bt_results = []
+					skipped_rows = []
+
+					for idx, r in bt_df.iterrows():
+						o_name = str(r.get("Origin League", "")).strip()
+						d_name = str(r.get("Dest League", "")).strip()
+						if o_name not in valid_leagues or d_name not in valid_leagues:
+							skipped_rows.append(f"Row {idx + 1} ({r.get('Player', 'Unknown')}): unknown league '{o_name}' or '{d_name}'")
+							continue
+
+						o_row = leagues_df[leagues_df["League"] == o_name].iloc[0]
+						d_row = leagues_df[leagues_df["League"] == d_name].iloc[0]
+
+						r_pos = str(r.get("Position", "Slashers/PGs")).strip()
+						if r_pos not in ["Bigs (C/PF)", "Shooters (SG/SF)", "Slashers / D(Non-Shooters)", "Slashers/PGs"]:
+							r_pos = "Slashers/PGs"
+
+						r_role = str(r.get("Target Role", "C (Rotation Player)")).strip()
+						if r_role not in TARGET_ROLE_CONFIGS:
+							r_role = "C (Rotation Player)"
+
+						r_gp = max(1, int(clean_num(r.get("Orig GP", 25)) or 25))
+						r_yob = int(clean_num(r.get("YOB", 2003)) or 2003)
+						r_h = int(clean_num(r.get("Height", 195)) or 195)
+
+						raw_mods = str(r.get("Modifiers", "")).strip()
+						r_mods = [m.strip() for m in raw_mods.split(",") if m.strip() in SITUATIONAL_MODIFIERS] if raw_mods and raw_mods.lower() != "nan" else []
+
+						fgm = clean_num(r.get("Orig FGM", 0))
+						fga = clean_num(r.get("Orig FGA", 0))
+						tpm = clean_num(r.get("Orig 3PM", 0))
+						tpa = clean_num(r.get("Orig 3PA", 0))
+						ftm = clean_num(r.get("Orig FTM", 0))
+						fta = clean_num(r.get("Orig FTA", 0))
+
+						r_raw = {
+							"MIN": max(1.0, clean_num(r.get("Orig MIN", 20))),
+							"PTS": clean_num(r.get("Orig PTS", 0)),
+							"FGM": fgm, "FGA": fga, "FG%": (fgm / fga if fga > 0 else 0.0),
+							"3PM": tpm, "3PA": tpa, "3P%": (tpm / tpa if tpa > 0 else 0.0),
+							"FTM": ftm, "FTA": fta, "FT%": (ftm / fta if fta > 0 else 0.0),
+							"OFF": clean_num(r.get("Orig OFF", 0)),
+							"DEF": clean_num(r.get("Orig DEF", 0)),
+							"TRB": clean_num(r.get("Orig TRB", 0)),
+							"AST": clean_num(r.get("Orig AST", 0)),
+							"STL": clean_num(r.get("Orig STL", 0)),
+							"BLK": clean_num(r.get("Orig BLK", 0)),
+							"TOV": clean_num(r.get("Orig TOV", 0)),
+							"PF": clean_num(r.get("Orig PF", 2.0))
+						}
+
+						act_min = max(1.0, clean_num(r.get("Actual Dest MIN", 20)))
+						act_pts = clean_num(r.get("Actual Dest PTS", 0))
+						act_reb = clean_num(r.get("Actual Dest REB", 0))
+						act_ast = clean_num(r.get("Actual Dest AST", 0))
+
+						p_out, *_ = run_projection_engine(
+							r_raw, o_row, d_row, 1.0, r_pos,
+							r_yob, r_h, 1.0, 1.0, 1.0,
+							r_mods, act_min, r_role, 0.20,
+							"Mid-Table (Default)", shooting_ci=None, gp=r_gp
+						)
+
+						bt_results.append({
+							"Player": r.get("Player", f"Player {idx + 1}"),
+							"Origin League": o_name,
+							"Dest League": d_name,
+							"Orig Rate": float(o_row["Rate"]),
+							"Dest Rate": float(d_row["Rate"]),
+							"Actual MIN": act_min,
+							"Proj PTS": p_out["PTS"],
+							"Actual PTS": act_pts,
+							"PTS Bias (Act-Proj)": round(act_pts - p_out["PTS"], 2),
+							"Proj REB": p_out["REB"],
+							"Actual REB": act_reb,
+							"REB Bias (Act-Proj)": round(act_reb - p_out["REB"], 2),
+							"Proj AST": p_out["AS"],
+							"Actual AST": act_ast,
+							"AST Bias (Act-Proj)": round(act_ast - p_out["AS"], 2),
+						})
+
+					if skipped_rows:
+						st.warning("Skipped invalid rows:\n- " + "\n- ".join(skipped_rows))
+
+					if bt_results:
+						res_df = pd.DataFrame(bt_results)
+
+						# 1. Global Accuracy Summary
+						c1, c2, c3, c4 = st.columns(4)
+						c1.metric("Transfers Tested", len(res_df))
+						c2.metric("PTS MAE / Mean Bias", f"{res_df['PTS Bias (Act-Proj)'].abs().mean():.2f}", delta=f"{res_df['PTS Bias (Act-Proj)'].mean():+.2f} avg bias")
+						c3.metric("REB MAE / Mean Bias", f"{res_df['REB Bias (Act-Proj)'].abs().mean():.2f}", delta=f"{res_df['REB Bias (Act-Proj)'].mean():+.2f} avg bias")
+						c4.metric("AST MAE / Mean Bias", f"{res_df['AST Bias (Act-Proj)'].abs().mean():.2f}", delta=f"{res_df['AST Bias (Act-Proj)'].mean():+.2f} avg bias")
+
+						st.markdown("#### Per-Transfer Results")
+						st.dataframe(res_df, use_container_width=True, hide_index=True)
+
+						# 2. League Drift Diagnosis (Grouped by Origin League)
+						st.markdown("#### Origin League Drift Calibration")
+						st.caption("Positive PTS Bias (Actual > Projected) suggests the Origin League may now be STRONGER than its current Rate.")
+
+						orig_grp = res_df.groupby("Origin League", as_index=False).agg(
+							Transfers=("Player", "count"),
+							Current_Rate=("Orig Rate", "first"),
+							Avg_Proj_PTS=("Proj PTS", "mean"),
+							Avg_Act_PTS=("Actual PTS", "mean"),
+							Avg_PTS_Bias=("PTS Bias (Act-Proj)", "mean"),
+							Avg_REB_Bias=("REB Bias (Act-Proj)", "mean"),
+							Avg_AST_Bias=("AST Bias (Act-Proj)", "mean")
+						)
+
+						def suggest_rate(row):
+							if row["Avg_Proj_PTS"] <= 0:
+								return row["Current_Rate"]
+							ratio = row["Avg_Act_PTS"] / row["Avg_Proj_PTS"]
+							# 50% dampened adjustment to avoid overfitting small samples
+							return round(row["Current_Rate"] * (1.0 + 0.5 * (ratio - 1.0)), 2)
+
+						def drift_note(bias):
+							if bias >= 1.2:  return "Undervalued (League may be stronger)"
+							if bias <= -1.2: return "Overvalued (League may be weaker)"
+							return "Well Calibrated"
+
+						orig_grp["Suggested Rate"] = orig_grp.apply(suggest_rate, axis=1)
+						orig_grp["Status"] = orig_grp["Avg_PTS_Bias"].apply(drift_note)
+						st.dataframe(orig_grp.round(2), use_container_width=True, hide_index=True)
+
+						# 3. Grouped by Destination League
+						st.markdown("#### Destination League Drift Check")
+						dest_grp = res_df.groupby("Dest League", as_index=False).agg(
+							Transfers=("Player", "count"),
+							Current_Rate=("Dest Rate", "first"),
+							Avg_PTS_Bias=("PTS Bias (Act-Proj)", "mean"),
+							Avg_REB_Bias=("REB Bias (Act-Proj)", "mean"),
+							Avg_AST_Bias=("AST Bias (Act-Proj)", "mean")
+						)
+						st.dataframe(dest_grp.round(2), use_container_width=True, hide_index=True)
+			except Exception as bt_err:
+				st.error(f"Could not process Backtest CSV: {bt_err}")
