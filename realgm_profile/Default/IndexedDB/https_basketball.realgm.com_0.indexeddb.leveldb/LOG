@@ -1,0 +1,14 @@
+2026/11/19-12:34:33.409 207c Reusing MANIFEST C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\IndexedDB\https_basketball.realgm.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/11/19-12:34:33.420 207c Recovering log #326
+2026/11/19-12:34:33.422 207c Reusing old log C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\IndexedDB\https_basketball.realgm.com_0.indexeddb.leveldb/000326.log 
+2026/11/19-12:34:33.423 207c Delete type=2 #325
+2026/11/19-12:35:23.924 725c Level-0 table #331: started
+2026/11/19-12:35:23.932 725c Level-0 table #331: 1041 bytes OK
+2026/11/19-12:35:23.936 725c Delete type=0 #326
+2026/11/19-12:35:23.939 207c Manual compaction at level-0 from '\x00^\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00_\x00\x00\x00' @ 0 : 0; will stop at '\x00^\x00\x00\xc8\x06\x00v\x00i\x00s\x00i\x00t\x00s' @ 8917 : 1
+2026/11/19-12:35:23.939 207c Compacting 1@0 + 1@1 files
+2026/11/19-12:35:23.945 207c Generated table #332@0: 205 keys, 7325 bytes
+2026/11/19-12:35:23.945 207c Compacted 1@0 + 1@1 files => 7325 bytes
+2026/11/19-12:35:23.946 207c compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/11/19-12:35:23.947 207c Delete type=2 #331
+2026/11/19-12:35:23.948 207c Manual compaction at level-0 from '\x00^\x00\x00\xc8\x06\x00v\x00i\x00s\x00i\x00t\x00s' @ 8917 : 1 .. '\x00_\x00\x00\x00' @ 0 : 0; will stop at (end)

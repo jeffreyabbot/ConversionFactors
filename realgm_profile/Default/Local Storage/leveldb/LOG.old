@@ -1,0 +1,27 @@
+2026/11/19-12:18:33.507 7528 Reusing MANIFEST C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/11/19-12:18:33.511 7528 Recovering log #8
+2026/11/19-12:18:33.522 7528 Reusing old log C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\Local Storage\leveldb/000008.log 
+2026/11/19-12:19:17.007 5900 Level-0 table #12: started
+2026/11/19-12:19:17.027 5900 Level-0 table #12: 46031 bytes OK
+2026/11/19-12:19:17.032 5900 Delete type=0 #8
+2026/11/19-12:20:56.040 5900 Level-0 table #14: started
+2026/11/19-12:20:56.057 5900 Level-0 table #14: 22212 bytes OK
+2026/11/19-12:20:56.063 5900 Delete type=0 #11
+2026/11/19-12:21:52.389 5900 Level-0 table #16: started
+2026/11/19-12:21:52.401 5900 Level-0 table #16: 35983 bytes OK
+2026/11/19-12:21:52.405 5900 Delete type=0 #13
+2026/11/19-12:21:52.407 5900 Compacting 4@0 + 1@1 files
+2026/11/19-12:21:52.425 5900 Generated table #17@0: 127 keys, 67925 bytes
+2026/11/19-12:21:52.425 5900 Compacted 4@0 + 1@1 files => 67925 bytes
+2026/11/19-12:21:52.426 5900 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/11/19-12:21:52.428 5900 Delete type=2 #7
+2026/11/19-12:21:52.428 5900 Delete type=2 #9
+2026/11/19-12:21:52.428 5900 Delete type=2 #12
+2026/11/19-12:21:52.428 5900 Delete type=2 #14
+2026/11/19-12:21:52.428 5900 Delete type=2 #16
+2026/11/19-12:22:26.467 5900 Level-0 table #19: started
+2026/11/19-12:22:26.476 5900 Level-0 table #19: 87685 bytes OK
+2026/11/19-12:22:26.479 5900 Delete type=0 #15
+2026/11/19-12:23:34.968 7528 Level-0 table #21: started
+2026/11/19-12:23:34.991 7528 Level-0 table #21: 26777 bytes OK
+2026/11/19-12:23:34.997 7528 Delete type=0 #18

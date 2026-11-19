@@ -1374,6 +1374,12 @@ def load_feb_row_into_state(df_row, player_name, height_cm, yob, team_name, gp, 
 	st.session_state.t_selected_modifiers = []
 	st.session_state.data_version += 1
 
+@st.cache_data(ttl=300, show_spinner=False)
+def load_local_player_pool(csv_path="player_pool.csv"):
+	if not os.path.exists(csv_path):
+		return pd.DataFrame()
+	return pd.read_csv(csv_path)
+
 def load_pool_player_into_state(row_dict, dest_league_choice, target_role_choice, target_min_choice):
 	mapped_stats = {
 		"MIN": float(row_dict.get("MIN", 20.0)),
@@ -1427,7 +1433,7 @@ def load_pool_player_into_state(row_dict, dest_league_choice, target_role_choice
 	st.session_state.t_selected_modifiers = []
 	st.session_state.data_version += 1
 	
-@st.cache_data(ttl=3600, show_spinner=False)
+
 def parse_feb_player_profile(url):
 	url = url.strip()
 	# Convert www.feb.es/competiciones/... wrapper URLs to the direct baloncestoenvivo.feb.es ASP.NET page
@@ -1563,129 +1569,7 @@ def parse_feb_player_profile(url):
 	}, None
 
 	
-	sess = curl_requests.Session(impersonate="chrome124") if curl_requests else None
-	scraper_sess_id = "feb98765"
-
-	html_text, final_url, err = fetch_html_content(
-		url, method="GET", session=sess, scraper_session_id=scraper_sess_id
-	)
-	if err or not html_text:
-		return None, f"FEB connection error: {err or 'Empty response'}"
-
-	soup = BeautifulSoup(html_text, 'html.parser')
-
-	player_name = "FEB Player"
-	name_node = soup.find('div', class_='nombre-jugador') or soup.find('div', class_='nombre')
-	if name_node:
-		player_name = name_node.get_text().strip().title()
-
-	# Click Trayectoria (ASP.NET Postback) keeping cookies/session; fall back to GET page if POST fails
-	career_btn = soup.find('input', id=re.compile(r'estadisticasCarreraButton', re.IGNORECASE))
-	if career_btn:
-		post_data = {}
-		for h in soup.find_all('input', type='hidden'):
-			if h.get('name'):
-				post_data[h.get('name')] = h.get('value', '')
-		if career_btn.get('name'):
-			post_data[career_btn['name']] = career_btn.get('value', 'Trayectoria')
-
-		post_html, _, post_err = fetch_html_content(
-			final_url, data=post_data, method="POST", session=sess, scraper_session_id=scraper_sess_id
-		)
-		if not post_err and post_html and ("Totales" in post_html or "Trayectoria" in post_html):
-			soup = BeautifulSoup(post_html, 'html.parser')
-
-	FEB_CATEGORY_MAP = {
-		"SEGUNDA FEB": "Spain Segunda FEB",
-		"LEB PLATA": "Spain Segunda FEB",
-		"PRIMERA FEB": "Spain Primera FEB",
-		"LEB ORO": "Spain Primera FEB",
-		"TERCERA FEB": "Spain Tercera FEB",
-		"LIGA EBA": "Spain Tercera FEB",
-		"ACB": "Spain Liga ACB",
-		"LIGA ENDESA": "Spain Liga ACB"
-	}
-
-	temp_category_map = {}
-	trayectoria_marker = soup.find(string=re.compile(r'Trayectoria Nacional', re.IGNORECASE))
-	if trayectoria_marker:
-		trayectoria_table = trayectoria_marker.find_next('table')
-		if trayectoria_table:
-			for tr in trayectoria_table.find_all('tr'):
-				t_cells = tr.find_all(['td', 'th'])
-				if len(t_cells) >= 3:
-					temp_val = t_cells[0].get_text().strip()
-					categ_val = t_cells[1].get_text().strip().upper()
-					club_val = t_cells[2].get_text().strip().upper()
-					if temp_val and categ_val and club_val:
-						base_club = re.sub(r'\s*\[.*?\]', '', club_val).strip()
-						temp_category_map[(temp_val, base_club)] = FEB_CATEGORY_MAP.get(categ_val, categ_val)
-
-	def find_league_for_row(temp, team):
-		def clean_str(s):
-			return re.sub(r'[^A-Z0-9]', '', s.upper())
-		normalized_team = clean_str(team)
-		if not normalized_team:
-			return None
-		for (t_temp, t_club), league in temp_category_map.items():
-			if t_temp == temp and (normalized_team in clean_str(t_club) or clean_str(t_club) in normalized_team):
-				return league
-		for (t_temp, t_club), league in temp_category_map.items():
-			if normalized_team in clean_str(t_club) or clean_str(t_club) in normalized_team:
-				return league
-		return None
-
-	table = None
-	totals_marker = soup.find(string=re.compile(r'Totales'))
-	if totals_marker:
-		table = totals_marker.find_next('table')
-	if not table:
-		return None, "FEB Totals table not found on page (possible Cloudflare challenge or invalid player URL)."
-
-	parsed_rows = []
-	curr_temp, curr_team = "Current", "Unknown Team"
-	cols = ["FASE", "PART", "MIN", "PT", "T2", "T3", "TC", "TL", "RO", "RD", "RT", "AS", "BR", "BP", "TF", "TC_C", "MT", "FC", "FR", "VA"]
-
-	for tr in table.find_all('tr'):
-		text = tr.get_text(separator=" ").strip()
-		cells = tr.find_all(['td', 'th'])
-		if "Temp:" in text:
-			t_m = re.search(r'Temp:\s*(\d{2}/\d{2})', text)
-			e_m = re.search(r'Equipo:\s*(.+)', text)
-			if t_m:
-				curr_temp = t_m.group(1)
-			if e_m:
-				curr_team = re.sub(r'\s*[-—–]+$', '', e_m.group(1).strip()).strip().upper()
-			continue
-		if len(cells) >= 18:
-			fase = cells[0].get_text().strip()
-			if fase.upper() in ["FASE", ""] or fase.isdigit():
-				continue
-			row_data = [c.get_text().strip() for c in cells]
-			row_dict = dict(zip(cols, row_data))
-			parsed_league_name = find_league_for_row(curr_temp, curr_team)
-			parsed_rows.append({
-				"label": f"{curr_team} {curr_temp} {fase}",
-				"equipo": curr_team,
-				"league": parsed_league_name,
-				"stats": row_dict
-			})
-
-	height_cm, yob = 0, 2005
-	page_text = soup.get_text()
-	h_match = re.search(r'(?:Altura|Alt)\s*[:.]?\s*(\d{3})', page_text, re.IGNORECASE)
-	if h_match:
-		height_cm = int(h_match.group(1))
-	b_match = re.search(r'(?:Nacimiento|Fecha)\s*[:.]?\s*\d{2}/\d{2}/(\d{4})', page_text, re.IGNORECASE)
-	if b_match:
-		yob = int(b_match.group(1))
-
-	return {
-		"player_name": player_name,
-		"height_cm": height_cm,
-		"yob": yob,
-		"rows": parsed_rows
-	}, None
+	
 # ==========================================
 # 8. EXACT EXCEL-ALIGNED STATS CONVERSION ENGINE
 # ==========================================
@@ -1700,7 +1584,59 @@ def get_country_system(league_name):
 	if league_name.startswith("NCAA"):
 		return league_name.split(" (")[0]
 	return league_name.split(" ")[0]
+def load_pool_player_into_state(row_dict, dest_league_choice, target_role_choice, target_min_choice):
+    mapped_stats = {
+        "MIN": float(row_dict.get("MIN", 20.0)),
+        "PTS": float(row_dict.get("PTS", 0.0)),
+        "FGM": float(row_dict.get("FGM", 0.0)),
+        "FGA": float(row_dict.get("FGA", 0.0)),
+        "FG%": float(row_dict.get("FG%", 0.0)),
+        "3PM": float(row_dict.get("3PM", 0.0)),
+        "3PA": float(row_dict.get("3PA", 0.0)),
+        "3P%": float(row_dict.get("3P%", 0.0)),
+        "FTM": float(row_dict.get("FTM", 0.0)),
+        "FTA": float(row_dict.get("FTA", 0.0)),
+        "FT%": float(row_dict.get("FT%", 0.0)),
+        "OFF": float(row_dict.get("OFF", 0.0)),
+        "DEF": float(row_dict.get("DEF", 0.0)),
+        "TRB": float(row_dict.get("TRB", 0.0)),
+        "AST": float(row_dict.get("AST", 0.0)),
+        "STL": float(row_dict.get("STL", 0.0)),
+        "BLK": float(row_dict.get("BLK", 0.0)),
+        "TOV": float(row_dict.get("TOV", 0.0)),
+        "PF": float(row_dict.get("PF", 2.0)),
+    }
+    gp_v = max(1, int(row_dict.get("GP", 20)))
+    shooting_ci = calculate_career_shooting_ci(None, mapped_stats, gp_v, source="Pool")
+    st.session_state.shooting_ci = shooting_ci
+    st.session_state.shooting_debug = shooting_ci["debug"]
+    st.session_state.imported_history = []
 
+    st.session_state.raw_stats = mapped_stats
+    st.session_state.p_player_name = str(row_dict["Player"])
+    st.session_state.t_player_name = str(row_dict["Player"])
+    st.session_state.p_orig_team = str(row_dict["Team"])
+    st.session_state.t_orig_team = str(row_dict["Team"])
+    st.session_state.p_yob = int(row_dict["YOB"])
+    st.session_state.t_yob = int(row_dict["YOB"])
+    st.session_state.p_height = int(row_dict["Height"])
+    st.session_state.t_height = int(row_dict["Height"])
+    st.session_state.p_gp = gp_v
+    st.session_state.t_gp = gp_v
+    st.session_state.p_position = str(row_dict["Position"])
+    st.session_state.t_position = str(row_dict["Position"])
+    st.session_state.p_orig_league_name = str(row_dict["Origin League"])
+    st.session_state.t_orig_league_name = str(row_dict["Origin League"])
+    st.session_state.p_dest_league_name = dest_league_choice
+    st.session_state.t_dest_league_name = dest_league_choice
+    st.session_state.p_target_role = target_role_choice
+    st.session_state.t_target_role = target_role_choice
+    st.session_state.p_target_min = float(target_min_choice)
+    st.session_state.t_target_min = float(target_min_choice)
+    st.session_state.p_selected_modifiers = []
+    st.session_state.t_selected_modifiers = []
+    st.session_state.data_version += 1
+    
 def run_projection_engine(
 	raw_stats, origin_league, dest_league, target_role_mod, position,
 	yob, height, age_mod, height_mod_reb, height_mod_2p,
@@ -2678,7 +2614,43 @@ else:
 				st.session_state.p_variability = variability_slider_val / 100.0
 		with col_stats:
 			st.markdown("### Raw Stats Importer and Editor")
-			
+			# Instant Local Pool Search (0 ScraperAPI credits)
+			local_pool_df = load_local_player_pool()
+			if not local_pool_df.empty:
+				with st.expander(f"⚡ Instant Search: Local Database ({len(local_pool_df):,} Players | 0 Credits)", expanded=True):
+					pool_q = st.text_input(
+						"Search Player or Team in Local Pool:",
+						placeholder="e.g. Jordi, Fuenlabrada, Duke...",
+						key="local_pool_query"
+					)
+					if pool_q.strip():
+						q_clean = strip_accents(pool_q.strip()).lower()
+						mask = (
+							local_pool_df["Player"].astype(str).apply(lambda s: q_clean in strip_accents(s).lower())
+							| local_pool_df["Team"].astype(str).apply(lambda s: q_clean in strip_accents(s).lower())
+						)
+						matches = local_pool_df[mask].head(30)
+						if matches.empty:
+							st.info("No match in local pool—use RealGM or FEB below.")
+						else:
+							match_records = matches.to_dict("records")
+							match_labels = [
+								f"{m['Player']} | {m['Team']} | {m['Origin League']} ({int(m['GP'])} GP, {m['PTS']} PPG)"
+								for m in match_records
+							]
+							chosen_label = st.selectbox("Select Player from Local Pool:", match_labels, key="local_pool_pick")
+							chosen_row = match_records[match_labels.index(chosen_label)]
+							st.button(
+								"Import from Local Pool",
+								key="import_local_pool_btn",
+								on_click=load_pool_player_into_state,
+								args=(
+									chosen_row,
+									st.session_state.p_dest_league_name,
+									st.session_state.p_target_role,
+									st.session_state.p_target_min
+								)
+							)
 			# RealGM Player Search Panel (Collapsible Expander)
 			with st.expander("🔍 Import from RealGM Database", expanded=False):
 				st.caption("Enter a player's name to fetch their statistics and profile directly from RealGM.")
