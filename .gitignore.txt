@@ -1,2 +1,4 @@
 .streamlit/
 realgm_profile/
+pool_season_*.csv
+torvik_cache_*.csv

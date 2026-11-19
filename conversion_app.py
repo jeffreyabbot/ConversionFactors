@@ -1373,7 +1373,10 @@ def load_feb_row_into_state(df_row, player_name, height_cm, yob, team_name, gp, 
 def load_local_player_pool(csv_path="player_pool.csv"):
 	if not os.path.exists(csv_path):
 		return pd.DataFrame()
-	return pd.read_csv(csv_path)
+	df = pd.read_csv(csv_path)
+	if not df.empty and "Season" not in df.columns:
+		df["Season"] = 2026
+	return df
 	
 def parse_feb_player_profile(url):
 	url = url.strip()
@@ -2508,24 +2511,31 @@ else:
 			local_pool_df = load_local_player_pool()
 			if not local_pool_df.empty:
 				with st.expander(f"⚡ Instant Search: Local Database ({len(local_pool_df):,} Players | 0 Credits)", expanded=True):
-					pool_q = st.text_input(
-						"Search Player or Team in Local Pool:",
-						placeholder="e.g. Jordi, Fuenlabrada, Duke...",
-						key="local_pool_query"
-					)
+					seasons_avail = sorted(local_pool_df["Season"].dropna().astype(int).unique().tolist(), reverse=True)
+					lp_c1, lp_c2 = st.columns([2.2, 1.0])
+					with lp_c1:
+						pool_q = st.text_input(
+							"Search Player or Team in Local Pool:",
+							placeholder="e.g. Jordi, Fuenlabrada, Duke...",
+							key="local_pool_query"
+						)
+					with lp_c2:
+						pool_season = st.selectbox("Season:", ["All"] + seasons_avail, key="local_pool_season")
+
 					if pool_q.strip():
 						q_clean = strip_accents(pool_q.strip()).lower()
+						sub_df = local_pool_df if pool_season == "All" else local_pool_df[local_pool_df["Season"].astype(int) == int(pool_season)]
 						mask = (
-							local_pool_df["Player"].astype(str).apply(lambda s: q_clean in strip_accents(s).lower())
-							| local_pool_df["Team"].astype(str).apply(lambda s: q_clean in strip_accents(s).lower())
+							sub_df["Player"].astype(str).apply(lambda s: q_clean in strip_accents(s).lower())
+							| sub_df["Team"].astype(str).apply(lambda s: q_clean in strip_accents(s).lower())
 						)
-						matches = local_pool_df[mask].head(30)
+						matches = sub_df[mask].sort_values("Season", ascending=False).head(30)
 						if matches.empty:
 							st.info("No match in local pool—use RealGM or FEB below.")
 						else:
 							match_records = matches.to_dict("records")
 							match_labels = [
-								f"{m['Player']} | {m['Team']} | {m['Origin League']} ({int(m['GP'])} GP, {m['PTS']} PPG)"
+								f"[{int(m['Season'])}] {m['Player']} | {m['Team']} | {m['Origin League']} ({int(m['GP'])} GP, {m['PTS']} PPG)"
 								for m in match_records
 							]
 							chosen_label = st.selectbox("Select Player from Local Pool:", match_labels, key="local_pool_pick")
@@ -3316,12 +3326,16 @@ else:
 			pool_df = pd.read_csv(uploaded_pool)
 
 		if pool_df is None or pool_df.empty:
-			st.info("No `player_pool.csv` found yet. Run `python build_player_pool.py` to generate the NCAA D1 pool, or upload a formatted CSV.")
+			st.info("No `player_pool.csv` found yet. Run `python build_player_pool.py` to generate the pool, or upload a formatted CSV.")
 		else:
-			st.success(f"Player Pool Loaded: **{len(pool_df):,}** players across **{pool_df['Origin League'].nunique()}** origin leagues.")
+			if "Season" not in pool_df.columns:
+				pool_df["Season"] = 2026
+			ps_seasons = sorted(pool_df["Season"].dropna().astype(int).unique().tolist(), reverse=True)
+			st.success(f"Player Pool Loaded: **{len(pool_df):,}** rows across **{pool_df['Origin League'].nunique()}** leagues (Seasons: {', '.join(map(str, ps_seasons))}).")
 
 			f1, f2, f3 = st.columns(3)
 			with f1:
+				ps_season = st.selectbox("Data Season", ps_seasons, key="ps_season")
 				ps_dest = st.selectbox("Target Destination League", list(leagues_df["League"].unique()), index=list(leagues_df["League"].unique()).index("Spain Segunda FEB"), key="ps_dest")
 				ps_pos = st.selectbox("Target Position", ["All", "Slashers/PGs", "Shooters (SG/SF)", "Bigs (C/PF)", "Slashers / D(Non-Shooters)"], key="ps_pos")
 				ps_need = st.selectbox(
@@ -3345,11 +3359,12 @@ else:
 				d_row = leagues_df[leagues_df["League"] == ps_dest].iloc[0]
 				ht_cond = (pool_df["Height"] >= ps_min_ht) | (pool_df["Height"] == 0) if ps_inc_unknown_ht else (pool_df["Height"] >= ps_min_ht)
 				filtered = pool_df[
-					(pool_df["Origin League"].isin(ps_origins))
-					& ht_cond
-					& ((2026 - pool_df["YOB"]) <= ps_max_age)
-					& (pool_df["GP"] >= ps_min_gp)
-				].copy()
+ 				(pool_df["Season"].astype(int) == int(ps_season))
+ 				& (pool_df["Origin League"].isin(ps_origins))
+ 				& ht_cond
+ 				& ((2026 - pool_df["YOB"]) <= ps_max_age)
+ 				& (pool_df["GP"] >= ps_min_gp)
+ 			].copy()
 
 				if ps_pos != "All":
 					filtered = filtered[filtered["Position"] == ps_pos]
