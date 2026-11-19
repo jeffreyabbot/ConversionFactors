@@ -1,13 +1,15 @@
-2026/11/19-16:35:36.973 5a5c Reusing MANIFEST C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\IndexedDB\https_basketball.realgm.com_0.indexeddb.leveldb/MANIFEST-000001
-2026/11/19-16:35:36.975 5a5c Recovering log #725
-2026/11/19-16:35:36.977 5a5c Reusing old log C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\IndexedDB\https_basketball.realgm.com_0.indexeddb.leveldb/000725.log 
-2026/11/19-16:35:42.976 5a5c Level-0 table #730: started
-2026/11/19-16:35:42.990 5a5c Level-0 table #730: 1690 bytes OK
-2026/11/19-16:35:42.993 5a5c Delete type=0 #725
-2026/11/19-16:35:42.997 5a5c Manual compaction at level-0 from '\x00\xd8\x00\x00\x00' @ 72057594037927935 : 1 .. '\x00\xd9\x00\x00\x00' @ 0 : 0; will stop at '\x00\xd8\x00\x00\xc8\x06\x00v\x00i\x00s\x00i\x00t\x00s' @ 16784 : 1
-2026/11/19-16:35:42.997 5a5c Compacting 1@0 + 1@1 files
-2026/11/19-16:35:43.022 5a5c Generated table #731@0: 349 keys, 13711 bytes
-2026/11/19-16:35:43.022 5a5c Compacted 1@0 + 1@1 files => 13711 bytes
-2026/11/19-16:35:43.023 5a5c compacted to: files[ 0 1 1 0 0 0 0 ]
-2026/11/19-16:35:43.024 5a5c Delete type=2 #730
-2026/11/19-16:35:43.026 4018 Manual compaction at level-0 from '\x00\xd8\x00\x00\xc8\x06\x00v\x00i\x00s\x00i\x00t\x00s' @ 16784 : 1 .. '\x00\xd9\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/11/19-17:47:01.259 604c Reusing MANIFEST C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\IndexedDB\https_basketball.realgm.com_0.indexeddb.leveldb/MANIFEST-000001
+2026/11/19-17:47:01.261 604c Recovering log #1390
+2026/11/19-17:47:01.263 604c Reusing old log C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\IndexedDB\https_basketball.realgm.com_0.indexeddb.leveldb/001390.log 
+2026/11/19-17:47:01.263 604c Delete type=2 #1389
+2026/11/19-17:47:07.807 4184 Manual compaction at level-0 from ' \xd7\x01\x00\x00\x00' @ 72057594037927935 : 1 .. ' \xd8\x01\x00\x00\x00' @ 0 : 0; will stop at (end)
+2026/11/19-17:47:09.430 4184 Level-0 table #1395: started
+2026/11/19-17:47:09.434 4184 Level-0 table #1395: 3521 bytes OK
+2026/11/19-17:47:09.436 4184 Delete type=0 #1390
+2026/11/19-17:47:09.436 604c Manual compaction at level-0 from ' \xd8\x01\x00\x00\x00' @ 72057594037927935 : 1 .. ' \xd9\x01\x00\x00\x00' @ 0 : 0; will stop at ' \xd8\x01\x00\x00\xc8\x06\x00v\x00i\x00s\x00i\x00t\x00s' @ 33157 : 1
+2026/11/19-17:47:09.436 604c Compacting 1@0 + 1@1 files
+2026/11/19-17:47:09.443 604c Generated table #1396@0: 748 keys, 18077 bytes
+2026/11/19-17:47:09.443 604c Compacted 1@0 + 1@1 files => 18077 bytes
+2026/11/19-17:47:09.444 604c compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/11/19-17:47:09.446 604c Delete type=2 #1395
+2026/11/19-17:47:09.447 604c Manual compaction at level-0 from ' \xd8\x01\x00\x00\xc8\x06\x00v\x00i\x00s\x00i\x00t\x00s' @ 33157 : 1 .. ' \xd9\x01\x00\x00\x00' @ 0 : 0; will stop at (end)

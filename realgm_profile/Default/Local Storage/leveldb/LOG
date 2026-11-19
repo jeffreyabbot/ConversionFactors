@@ -1,69 +1,84 @@
-2026/11/19-16:13:45.631 3f4 Reusing MANIFEST C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\Local Storage\leveldb/MANIFEST-000001
-2026/11/19-16:13:45.637 3f4 Recovering log #30
-2026/11/19-16:13:45.650 3f4 Reusing old log C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\Local Storage\leveldb/000030.log 
-2026/11/19-16:14:16.896 2e84 Level-0 table #34: started
-2026/11/19-16:14:16.915 2e84 Level-0 table #34: 118663 bytes OK
-2026/11/19-16:14:16.924 2e84 Delete type=0 #30
-2026/11/19-16:15:47.742 2e84 Level-0 table #36: started
-2026/11/19-16:15:47.762 2e84 Level-0 table #36: 14972 bytes OK
-2026/11/19-16:15:47.770 2e84 Delete type=0 #33
-2026/11/19-16:15:47.774 2e84 Compacting 4@0 + 1@1 files
-2026/11/19-16:15:47.809 2e84 Generated table #37@0: 294 keys, 76026 bytes
-2026/11/19-16:15:47.809 2e84 Compacted 4@0 + 1@1 files => 76026 bytes
-2026/11/19-16:15:47.810 2e84 compacted to: files[ 0 1 1 0 0 0 0 ]
-2026/11/19-16:15:47.813 2e84 Delete type=2 #27
-2026/11/19-16:15:47.815 2e84 Delete type=2 #29
-2026/11/19-16:15:47.815 2e84 Delete type=2 #31
-2026/11/19-16:15:47.816 2e84 Delete type=2 #34
-2026/11/19-16:15:47.816 2e84 Delete type=2 #36
-2026/11/19-16:17:47.658 2e84 Level-0 table #39: started
-2026/11/19-16:17:47.678 2e84 Level-0 table #39: 14052 bytes OK
-2026/11/19-16:17:47.682 2e84 Delete type=0 #35
-2026/11/19-16:20:47.656 2e84 Level-0 table #41: started
-2026/11/19-16:20:47.676 2e84 Level-0 table #41: 14406 bytes OK
-2026/11/19-16:20:47.681 2e84 Delete type=0 #38
-2026/11/19-16:23:47.650 2e84 Level-0 table #43: started
-2026/11/19-16:23:47.663 2e84 Level-0 table #43: 14407 bytes OK
-2026/11/19-16:23:47.666 2e84 Delete type=0 #40
-2026/11/19-16:24:47.662 2e84 Level-0 table #45: started
-2026/11/19-16:24:47.676 2e84 Level-0 table #45: 49097 bytes OK
-2026/11/19-16:24:47.681 2e84 Delete type=0 #42
-2026/11/19-16:24:47.683 2e84 Compacting 4@0 + 1@1 files
-2026/11/19-16:24:47.733 2e84 Generated table #46@0: 391 keys, 61881 bytes
-2026/11/19-16:24:47.733 2e84 Compacted 4@0 + 1@1 files => 61881 bytes
-2026/11/19-16:24:47.734 2e84 compacted to: files[ 0 1 1 0 0 0 0 ]
-2026/11/19-16:24:47.743 2e84 Delete type=2 #37
-2026/11/19-16:24:47.743 2e84 Delete type=2 #39
-2026/11/19-16:24:47.743 2e84 Delete type=2 #41
-2026/11/19-16:24:47.743 2e84 Delete type=2 #43
-2026/11/19-16:24:47.744 2e84 Delete type=2 #45
-2026/11/19-16:24:58.648 2e84 Level-0 table #48: started
-2026/11/19-16:24:58.776 2e84 Level-0 table #48: 58191 bytes OK
-2026/11/19-16:24:58.781 2e84 Delete type=0 #44
-2026/11/19-16:28:27.010 2e84 Level-0 table #50: started
-2026/11/19-16:28:27.021 2e84 Level-0 table #50: 15695 bytes OK
-2026/11/19-16:28:27.025 2e84 Delete type=0 #47
-2026/11/19-16:29:27.442 2e84 Level-0 table #52: started
-2026/11/19-16:29:27.451 2e84 Level-0 table #52: 13206 bytes OK
-2026/11/19-16:29:27.455 2e84 Delete type=0 #49
-2026/11/19-16:30:42.782 2e84 Level-0 table #54: started
-2026/11/19-16:30:42.795 2e84 Level-0 table #54: 13482 bytes OK
-2026/11/19-16:30:42.799 2e84 Delete type=0 #51
-2026/11/19-16:30:42.800 2e84 Compacting 4@0 + 1@1 files
-2026/11/19-16:30:42.815 2e84 Generated table #55@0: 427 keys, 19453 bytes
-2026/11/19-16:30:42.815 2e84 Compacted 4@0 + 1@1 files => 19453 bytes
-2026/11/19-16:30:42.818 2e84 compacted to: files[ 0 1 1 0 0 0 0 ]
-2026/11/19-16:30:42.820 2e84 Delete type=2 #46
-2026/11/19-16:30:42.820 2e84 Delete type=2 #48
-2026/11/19-16:30:42.820 2e84 Delete type=2 #50
-2026/11/19-16:30:42.820 2e84 Delete type=2 #52
-2026/11/19-16:30:42.820 2e84 Delete type=2 #54
-2026/11/19-16:32:20.548 2e84 Level-0 table #57: started
-2026/11/19-16:32:20.557 2e84 Level-0 table #57: 15052 bytes OK
-2026/11/19-16:32:20.562 2e84 Delete type=0 #53
-2026/11/19-16:33:58.607 2e84 Level-0 table #59: started
-2026/11/19-16:33:58.620 2e84 Level-0 table #59: 13577 bytes OK
-2026/11/19-16:33:58.623 2e84 Delete type=0 #56
-2026/11/19-16:35:58.582 2e84 Level-0 table #61: started
-2026/11/19-16:35:58.593 2e84 Level-0 table #61: 17953 bytes OK
-2026/11/19-16:35:58.598 2e84 Delete type=0 #58
+2026/11/19-17:05:39.485 4288 Reusing MANIFEST C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\Local Storage\leveldb/MANIFEST-000001
+2026/11/19-17:05:39.492 4288 Recovering log #60
+2026/11/19-17:05:39.503 4288 Reusing old log C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\Local Storage\leveldb/000060.log 
+2026/11/19-17:06:02.986 1980 Level-0 table #64: started
+2026/11/19-17:06:03.001 1980 Level-0 table #64: 51508 bytes OK
+2026/11/19-17:06:03.006 1980 Delete type=0 #60
+2026/11/19-17:06:03.009 1980 Compacting 4@0 + 1@1 files
+2026/11/19-17:06:03.021 1980 Generated table #65@0: 491 keys, 65103 bytes
+2026/11/19-17:06:03.021 1980 Compacted 4@0 + 1@1 files => 65103 bytes
+2026/11/19-17:06:03.022 1980 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/11/19-17:06:03.025 1980 Delete type=2 #55
+2026/11/19-17:06:03.026 1980 Delete type=2 #57
+2026/11/19-17:06:03.026 1980 Delete type=2 #59
+2026/11/19-17:06:03.026 1980 Delete type=2 #61
+2026/11/19-17:06:03.026 1980 Delete type=2 #64
+2026/11/19-17:07:41.674 1980 Level-0 table #67: started
+2026/11/19-17:07:41.703 1980 Level-0 table #67: 14996 bytes OK
+2026/11/19-17:07:41.716 1980 Delete type=0 #63
+2026/11/19-17:10:15.020 1980 Level-0 table #69: started
+2026/11/19-17:10:15.030 1980 Level-0 table #69: 13712 bytes OK
+2026/11/19-17:10:15.034 1980 Delete type=0 #66
+2026/11/19-17:12:41.680 2498 Level-0 table #71: started
+2026/11/19-17:12:41.707 2498 Level-0 table #71: 17787 bytes OK
+2026/11/19-17:12:41.715 2498 Delete type=0 #68
+2026/11/19-17:15:51.075 1980 Level-0 table #73: started
+2026/11/19-17:15:51.086 1980 Level-0 table #73: 16832 bytes OK
+2026/11/19-17:15:51.090 1980 Delete type=0 #70
+2026/11/19-17:15:51.092 1980 Compacting 4@0 + 1@1 files
+2026/11/19-17:15:51.106 1980 Generated table #74@0: 563 keys, 28744 bytes
+2026/11/19-17:15:51.106 1980 Compacted 4@0 + 1@1 files => 28744 bytes
+2026/11/19-17:15:51.107 1980 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/11/19-17:15:51.109 1980 Delete type=2 #65
+2026/11/19-17:15:51.110 1980 Delete type=2 #67
+2026/11/19-17:15:51.110 1980 Delete type=2 #69
+2026/11/19-17:15:51.110 1980 Delete type=2 #71
+2026/11/19-17:15:51.110 1980 Delete type=2 #73
+2026/11/19-17:18:51.073 1980 Level-0 table #76: started
+2026/11/19-17:18:51.079 1980 Level-0 table #76: 20070 bytes OK
+2026/11/19-17:18:51.081 1980 Delete type=0 #72
+2026/11/19-17:21:51.063 1980 Level-0 table #78: started
+2026/11/19-17:21:51.070 1980 Level-0 table #78: 16436 bytes OK
+2026/11/19-17:21:51.072 1980 Delete type=0 #75
+2026/11/19-17:25:41.583 1980 Level-0 table #80: started
+2026/11/19-17:25:41.591 1980 Level-0 table #80: 16663 bytes OK
+2026/11/19-17:25:41.595 1980 Delete type=0 #77
+2026/11/19-17:27:41.575 1980 Level-0 table #82: started
+2026/11/19-17:27:41.582 1980 Level-0 table #82: 16999 bytes OK
+2026/11/19-17:27:41.584 1980 Delete type=0 #79
+2026/11/19-17:27:41.585 1980 Compacting 4@0 + 1@1 files
+2026/11/19-17:27:41.592 1980 Generated table #83@0: 650 keys, 36285 bytes
+2026/11/19-17:27:41.592 1980 Compacted 4@0 + 1@1 files => 36285 bytes
+2026/11/19-17:27:41.593 1980 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/11/19-17:27:41.594 1980 Delete type=2 #74
+2026/11/19-17:27:41.595 1980 Delete type=2 #76
+2026/11/19-17:27:41.595 1980 Delete type=2 #78
+2026/11/19-17:27:41.595 1980 Delete type=2 #80
+2026/11/19-17:27:41.595 1980 Delete type=2 #82
+2026/11/19-17:30:41.596 1980 Level-0 table #85: started
+2026/11/19-17:30:41.615 1980 Level-0 table #85: 25436 bytes OK
+2026/11/19-17:30:41.621 1980 Delete type=0 #81
+2026/11/19-17:32:51.067 1980 Level-0 table #87: started
+2026/11/19-17:32:51.074 1980 Level-0 table #87: 21788 bytes OK
+2026/11/19-17:32:51.076 1980 Delete type=0 #84
+2026/11/19-17:35:51.072 1980 Level-0 table #89: started
+2026/11/19-17:35:51.084 1980 Level-0 table #89: 20443 bytes OK
+2026/11/19-17:35:51.089 1980 Delete type=0 #86
+2026/11/19-17:37:51.069 1980 Level-0 table #91: started
+2026/11/19-17:37:51.076 1980 Level-0 table #91: 30189 bytes OK
+2026/11/19-17:37:51.078 1980 Delete type=0 #88
+2026/11/19-17:37:51.079 1980 Compacting 4@0 + 1@1 files
+2026/11/19-17:37:51.089 1980 Generated table #92@0: 725 keys, 57963 bytes
+2026/11/19-17:37:51.089 1980 Compacted 4@0 + 1@1 files => 57963 bytes
+2026/11/19-17:37:51.090 1980 compacted to: files[ 0 1 1 0 0 0 0 ]
+2026/11/19-17:37:51.092 1980 Delete type=2 #83
+2026/11/19-17:37:51.092 1980 Delete type=2 #85
+2026/11/19-17:37:51.092 1980 Delete type=2 #87
+2026/11/19-17:37:51.092 1980 Delete type=2 #89
+2026/11/19-17:37:51.092 1980 Delete type=2 #91
+2026/11/19-17:40:51.090 1980 Level-0 table #94: started
+2026/11/19-17:40:51.110 1980 Level-0 table #94: 16616 bytes OK
+2026/11/19-17:40:51.116 1980 Delete type=0 #90
+2026/11/19-17:44:51.071 1980 Level-0 table #96: started
+2026/11/19-17:44:51.080 1980 Level-0 table #96: 15601 bytes OK
+2026/11/19-17:44:51.083 1980 Delete type=0 #93

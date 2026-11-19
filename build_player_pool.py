@@ -120,20 +120,55 @@ def safe_float(val, default=0.0):
     except ValueError:
         return default
 
-def ht_to_cm(ht_str):
+def ht_to_cm(ht_str, default=0):
     m = re.match(r"(\d)-(\d{1,2})", str(ht_str).strip())
     if not m:
-        return 193
+        return default
     return round((int(m.group(1)) * 12 + int(m.group(2))) * 2.54)
 
-def infer_position(ht_cm, ast, tpa_pg, tp_pct, treb=0.0, blk=0.0):
-    if ht_cm >= 201 or (ht_cm == 0 and (treb >= 6.0 or blk >= 0.8)):
+def map_realgm_pos(rgm_pos, mpg, ast, tpa, tp_pct, treb, blk):
+    p = str(rgm_pos or "").upper().strip()
+    scale36 = 36.0 / max(1.0, mpg)
+    tpa36 = tpa * scale36
+    ast36 = ast * scale36
+    reb36 = treb * scale36
+    blk36 = blk * scale36
+
+    if p in ("C", "FC", "PF"):
         return "Bigs (C/PF)"
-    if ast >= 3.0 and (ht_cm <= 193 or ht_cm == 0):
+    if p == "PG":
         return "Slashers/PGs"
-    if tpa_pg >= 3.0 and tp_pct >= 0.32:
+    if p in ("SG", "GF"):
+        if tpa36 >= 3.5 and tp_pct >= 0.31:
+            return "Shooters (SG/SF)"
+        return "Slashers/PGs" if ast36 >= 4.0 else "Slashers / D(Non-Shooters)"
+    if p in ("SF", "F"):
+        if tpa36 >= 3.5 and tp_pct >= 0.31:
+            return "Shooters (SG/SF)"
+        return "Slashers / D(Non-Shooters)"
+    if p == "G":
+        if ast36 >= 4.2:
+            return "Slashers/PGs"
+        return "Shooters (SG/SF)" if (tpa36 >= 3.5 and tp_pct >= 0.31) else "Slashers / D(Non-Shooters)"
+
+    # Per-36 fallback only when RealGM lists "-"
+    if reb36 >= 9.0 or blk36 >= 1.4:
+        return "Bigs (C/PF)"
+    if ast36 >= 4.2:
+        return "Slashers/PGs"
+    if tpa36 >= 3.8 and tp_pct >= 0.32:
         return "Shooters (SG/SF)"
-    return "Slashers/PGs" if ht_cm <= 191 else "Slashers / D(Non-Shooters)"
+    return "Slashers / D(Non-Shooters)"
+
+def infer_position(ht_cm, ast, tpa_pg, tp_pct, treb=0.0, blk=0.0, mpg=25.0):
+    scale36 = 36.0 / max(1.0, mpg)
+    if ht_cm >= 201 or (ht_cm == 0 and (treb * scale36 >= 9.0 or blk * scale36 >= 1.4)):
+        return "Bigs (C/PF)"
+    if ast * scale36 >= 4.2 and (ht_cm <= 193 or ht_cm == 0):
+        return "Slashers/PGs"
+    if tpa_pg * scale36 >= 3.8 and tp_pct >= 0.32:
+        return "Shooters (SG/SF)"
+    return "Slashers/PGs" if (0 < ht_cm <= 191) else "Slashers / D(Non-Shooters)"
 
 def build_torvik_pool(year):
     cache_file = f"torvik_cache_{year}.csv"
@@ -186,7 +221,7 @@ def build_torvik_pool(year):
             if gp < 8 or mp < 10.0:
                 continue
             conf = str(r[2]).strip()
-            ht_cm = ht_to_cm(r[26])
+            ht_cm = ht_to_cm(r[26], default=193)
             ftm_pg, fta_pg = float(r[13]) / gp, float(r[14]) / gp
             twom_pg, twoa_pg = float(r[16]) / gp, float(r[17]) / gp
             tpm_pg, tpa_pg = float(r[19]) / gp, float(r[20]) / gp
@@ -205,7 +240,7 @@ def build_torvik_pool(year):
                 "Team": str(r[1]).strip(),
                 "Origin League": TORVIK_CONF_TO_TIER.get(conf, "NCAA D1 (Low Major)"),
                 "Conference": conf,
-                "Position": infer_position(ht_cm, ast, tpa_pg, tp_pct, float(r[59]), float(r[62])),
+                "Position": infer_position(ht_cm, ast, tpa_pg, tp_pct, float(r[59]), float(r[62]), mp),
                 "YOB": yr_map.get(str(r[25]).strip(), year - 22),
                 "Height": ht_cm,
                 "GP": gp, "MIN": round(mp, 1), "PTS": round(float(r[63]), 1),
@@ -359,10 +394,44 @@ class RealGMFetcher:
             pass
         return None
 
-def parse_realgm_leaderboard(html, app_league_name, source_label, season_year):
+def parse_realgm_bio_page(html):
+    """Parses /players/{year} to extract exact Pos, Height (cm), and Nationality per player."""
+    soup = BeautifulSoup(html, "html.parser")
+    by_player_team = {}
+    by_player = {}
+
+    for tbl in soup.find_all("table"):
+        try:
+            df = pd.read_html(io.StringIO(str(tbl)))[0]
+            df.columns = [str(c).strip().upper().rstrip(".") for c in df.columns]
+            if not {"PLAYER", "POS", "HT"}.issubset(set(df.columns)):
+                continue
+
+            for _, r in df.iterrows():
+                p_name = str(r.get("PLAYER", "")).strip()
+                if not p_name or p_name.lower() == "nan":
+                    continue
+                t_name = str(r.get("TEAM", "")).strip()
+                pos_val = str(r.get("POS", "")).strip()
+                ht_val = ht_to_cm(r.get("HT", ""), default=0)
+                nat_val = str(r.get("NATIONALITY", "")).strip()
+                if nat_val.lower() == "nan":
+                    nat_val = ""
+
+                info = {"pos": pos_val if pos_val != "-" else "", "ht": ht_val, "nat": nat_val}
+                by_player_team[(p_name.lower(), t_name.lower())] = info
+                by_player[p_name.lower()] = info
+            break
+        except Exception:
+            continue
+
+    return by_player_team, by_player
+
+def parse_realgm_leaderboard(html, app_league_name, source_label, season_year, forced_pos="", bio_lookup=None):
     soup = BeautifulSoup(html, "html.parser")
     rows = []
     raw_row_count = 0
+    by_pt, by_p = bio_lookup if bio_lookup else ({}, {})
 
     for tbl in soup.find_all("table"):
         try:
@@ -378,6 +447,8 @@ def parse_realgm_leaderboard(html, app_league_name, source_label, season_year):
                     mpg = safe_float(r.get("MPG"))
                     if gp < 5 or mpg < 10.0:
                         continue
+                    p_name = str(r["PLAYER"]).strip()
+                    t_name = str(r["TEAM"]).strip()
                     fgm, fga = safe_float(r.get("FGM")), safe_float(r.get("FGA"))
                     tpm, tpa = safe_float(r.get("3PM")), safe_float(r.get("3PA"))
                     ftm, fta = safe_float(r.get("FTM")), safe_float(r.get("FTA"))
@@ -386,16 +457,23 @@ def parse_realgm_leaderboard(html, app_league_name, source_label, season_year):
                     ast = safe_float(r.get("APG"))
                     blk = safe_float(r.get("BPG"))
 
+                    bio = by_pt.get((p_name.lower(), t_name.lower())) or by_p.get(p_name.lower(), {})
+                    rgm_pos = forced_pos or bio.get("pos", "")
+                    ht_cm = bio.get("ht", 0)
+                    nat = bio.get("nat", "")
+
                     rows.append({
                         "Season": int(season_year),
                         "Source": source_label,
-                        "Player": str(r["PLAYER"]).strip(),
-                        "Team": str(r["TEAM"]).strip(),
+                        "Player": p_name,
+                        "Team": t_name,
+                        "Nationality": nat,
+                        "RealGM Pos": rgm_pos,
                         "Origin League": app_league_name,
                         "Conference": "",
-                        "Position": infer_position(0, ast, tpa, tp_pct, treb, blk),
+                        "Position": map_realgm_pos(rgm_pos, mpg, ast, tpa, tp_pct, treb, blk),
                         "YOB": int(season_year) - 24,
-                        "Height": 0,
+                        "Height": ht_cm,
                         "GP": gp, "MIN": round(mpg, 1), "PTS": round(safe_float(r.get("PPG")), 1),
                         "FGM": round(fgm, 2), "FGA": round(fga, 2), "FG%": round(safe_float(r.get("FG%")), 3),
                         "3PM": round(tpm, 2), "3PA": round(tpa, 2), "3P%": round(tp_pct, 3),
@@ -415,7 +493,6 @@ def parse_realgm_leaderboard(html, app_league_name, source_label, season_year):
             continue
 
     return rows, raw_row_count
-
 def discover_intl_league_urls(fetcher):
     html = fetcher.get_html("https://basketball.realgm.com/international/league/1/Spanish-ACB/stats")
     soup = BeautifulSoup(html, "html.parser")
@@ -452,18 +529,24 @@ if __name__ == "__main__":
                     season_rows.extend(build_torvik_pool(year))
 
                 if fetcher and INCLUDE_NCAA_D2:
-                    print(f"[{year}] Fetching NCAA DII...", flush=True)
-                    h = fetcher.get_html(f"https://basketball.realgm.com/ncaa-dii/stats/{year}/Averages/Qualified/All/Season/All/points/desc/1/")
-                    parsed, _ = parse_realgm_leaderboard(h, "NCAA D2 (All)", f"RealGM D2 {year}", year)
-                    season_rows.extend(parsed)
-                    print(f"  -> {len(parsed):,} NCAA DII players", flush=True)
+                    d2_count = 0
+                    for pos_code in ["PG", "SG", "SF", "PF", "C"]:
+                        print(f"[{year}] Fetching NCAA DII ({pos_code})...", flush=True)
+                        h = fetcher.get_html(f"https://basketball.realgm.com/ncaa-dii/stats/{year}/Averages/Qualified/All/Season/{pos_code}/points/desc/1/")
+                        parsed, _ = parse_realgm_leaderboard(h, "NCAA D2 (All)", f"RealGM D2 {year}", year, forced_pos=pos_code)
+                        season_rows.extend(parsed)
+                        d2_count += len(parsed)
+                    print(f"  -> {d2_count:,} NCAA DII players", flush=True)
 
                 if fetcher and INCLUDE_NCAA_D3:
-                    print(f"[{year}] Fetching NCAA DIII...", flush=True)
-                    h = fetcher.get_html(f"https://basketball.realgm.com/ncaa-diii/stats/{year}/Averages/Qualified/All/Season/All/points/desc/1/")
-                    parsed, _ = parse_realgm_leaderboard(h, "NCAA D3", f"RealGM D3 {year}", year)
-                    season_rows.extend(parsed)
-                    print(f"  -> {len(parsed):,} NCAA DIII players", flush=True)
+                    d3_count = 0
+                    for pos_code in ["PG", "SG", "SF", "PF", "C"]:
+                        print(f"[{year}] Fetching NCAA DIII ({pos_code})...", flush=True)
+                        h = fetcher.get_html(f"https://basketball.realgm.com/ncaa-diii/stats/{year}/Averages/Qualified/All/Season/{pos_code}/points/desc/1/")
+                        parsed, _ = parse_realgm_leaderboard(h, "NCAA D3", f"RealGM D3 {year}", year, forced_pos=pos_code)
+                        season_rows.extend(parsed)
+                        d3_count += len(parsed)
+                    print(f"  -> {d3_count:,} NCAA DIII players", flush=True)
 
                 if fetcher and REALGM_TO_APP_LEAGUE:
                     for rgm_name, app_name in REALGM_TO_APP_LEAGUE.items():
@@ -472,12 +555,16 @@ if __name__ == "__main__":
                             print(f"  -> Skipping '{rgm_name}' (URL not found)", flush=True)
                             continue
 
+                        # Fetch the 1-page league roster/bio table for exact Pos, Height (cm), and Nationality
+                        bio_html = fetcher.get_html(f"{base_url}/players/{year}")
+                        bio_lookup = parse_realgm_bio_page(bio_html)
+
                         seen_players = set()
                         h = fetcher.get_html(f"{base_url}/stats/{year}/Averages")
                         h = fetcher.sort_by_ppg_and_read()
 
                         for p in range(1, PAGES_PER_LEAGUE + 1):
-                            parsed, raw_cnt = parse_realgm_leaderboard(h, app_name, f"RealGM {year}", year)
+                            parsed, raw_cnt = parse_realgm_leaderboard(h, app_name, f"RealGM {year}", year, bio_lookup=bio_lookup)
                             new_rows = [r for r in parsed if (r["Player"], r["Team"]) not in seen_players]
                             for r in new_rows:
                                 seen_players.add((r["Player"], r["Team"]))
@@ -488,7 +575,7 @@ if __name__ == "__main__":
                             if not h:
                                 break
 
-                        print(f"[{year}] {rgm_name} -> {len(seen_players)} players", flush=True)
+                        print(f"[{year}] {rgm_name} -> {len(seen_players)} players (with Bio/Height)", flush=True)
 
                 s_df = pd.DataFrame(season_rows).drop_duplicates(subset=["Season", "Player", "Team", "Origin League"])
                 s_df.to_csv(f"pool_season_{year}.csv", index=False)

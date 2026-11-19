@@ -1,2 +1,3 @@
-2026/11/19-12:33:44.606 6f38 Creating DB C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\WebStorage\6\IndexedDB\indexeddb.leveldb since it was missing.
-2026/11/19-12:33:44.800 6f38 Reusing MANIFEST C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\WebStorage\6\IndexedDB\indexeddb.leveldb/MANIFEST-000001
+2026/11/19-17:47:23.593 604c Reusing MANIFEST C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\WebStorage\6\IndexedDB\indexeddb.leveldb/MANIFEST-000001
+2026/11/19-17:47:23.595 604c Recovering log #3
+2026/11/19-17:47:23.596 604c Reusing old log C:\Users\vsola\Documents\GitHub\ConversionFactors\realgm_profile\Default\WebStorage\6\IndexedDB\indexeddb.leveldb/000003.log 

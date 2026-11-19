@@ -3350,14 +3350,14 @@ else:
 				ps_min = st.slider("Target Minutes", 10.0, 36.0, 24.0, step=1.0, key="ps_min")
 			with f3:
 				ps_min_ht = st.number_input("Min Height (cm)", 0, 225, 0, step=1, key="ps_min_ht")
-				ps_inc_unknown_ht = st.checkbox("Include unknown height (RealGM pools)", value=True, key="ps_inc_unknown_ht")
+				ps_inc_unknown_ht = st.checkbox("Include unknown height (RealGM pools)", value=False, key="ps_inc_unknown_ht")
 				ps_max_age = st.slider("Max Age", 18, 40, 27, step=1, key="ps_max_age")
 				ps_min_gp = st.number_input("Min Games Played", 1, 50, 15, step=1, key="ps_min_gp")
 				ps_exclude_high_risk = st.checkbox("Exclude High-Risk Players (Risk ≥ 3.5)", value=True, key="ps_no_high_risk")
 
 			if st.button("🔎 Find Top 5 Fits", type="primary", key="run_proactive_btn"):
 				d_row = leagues_df[leagues_df["League"] == ps_dest].iloc[0]
-				ht_cond = (pool_df["Height"] >= ps_min_ht) | (pool_df["Height"] == 0) if ps_inc_unknown_ht else (pool_df["Height"] >= ps_min_ht)
+				ht_cond = (pool_df["Height"] >= ps_min_ht) | ((pool_df["Height"] == 0) & ps_inc_unknown_ht)
 				filtered = pool_df[
  				(pool_df["Season"].astype(int) == int(ps_season))
  				& (pool_df["Origin League"].isin(ps_origins))
@@ -3454,11 +3454,27 @@ else:
 					r_info = cand["row"]
 					p = cand["proj"]
 					r_badge = "🟢 SAFE" if cand["risk"] < 1.5 else ("🟡 CAUTION" if cand["risk"] < 3.5 else "🔴 HIGH RISK")
+
+					nat_str = str(r_info.get("Nationality", "") or "").strip()
+					if nat_str.lower() == "nan":
+						nat_str = ""
+					rgm_pos_str = str(r_info.get("RealGM Pos", "") or "").strip()
+					if rgm_pos_str.lower() == "nan":
+						rgm_pos_str = ""
+					conf_str = str(r_info.get("Conference", "") or "").strip()
+					if conf_str.lower() == "nan":
+						conf_str = ""
+
+					league_tag = f"{r_info['Origin League']} ({conf_str})" if conf_str else str(r_info["Origin League"])
+					ht_tag = f"{int(r_info['Height'])} cm" if int(r_info.get("Height", 0) or 0) > 0 else "HT N/A"
+					extra_tags = [t for t in [rgm_pos_str, nat_str] if t]
+					meta_line = " | ".join([league_tag] + extra_tags + [f"Age {cand['age']}", ht_tag, f"{int(r_info['GP'])} GP"])
+
 					with st.container(border=True):
 						c_left, c_mid, c_right = st.columns([2.0, 2.5, 1.2])
 						with c_left:
 							st.markdown(f"**#{idx + 1} {r_info['Player']}** ({r_info['Team']})")
-							st.caption(f"{r_info['Origin League']} ({r_info.get('Conference', '')}) | Age {cand['age']} | {r_info['Height']} cm | {r_info['GP']} GP")
+							st.caption(meta_line)
 							st.write(f"Fit Score: **`{cand['fit_score']}`** | Risk: `{r_badge} ({cand['risk']:.1f})`")
 						with c_mid:
 							st.markdown(
@@ -3485,11 +3501,22 @@ else:
 					r_info = cand["row"]
 					p = cand["proj"]
 					r_status = "SAFE" if cand["risk"] < 1.5 else ("CAUTION" if cand["risk"] < 3.5 else "HIGH RISK")
+
+					nat_str = str(r_info.get("Nationality", "") or "").strip()
+					if nat_str.lower() == "nan":
+						nat_str = ""
+					rgm_pos_str = str(r_info.get("RealGM Pos", "") or "").strip()
+					if rgm_pos_str.lower() == "nan":
+						rgm_pos_str = ""
+
 					table_rows.append({
 						"Rank": idx + 1,
 						"Player": r_info["Player"],
 						"Team": r_info["Team"],
+						"Pos": rgm_pos_str if rgm_pos_str else r_info["Position"],
+						"Nationality": nat_str,
 						"Origin League": r_info["Origin League"],
+						"Season": int(r_info.get("Season", 2026)),
 						"Age": cand["age"],
 						"Height": int(r_info["Height"]),
 						"GP": int(r_info["GP"]),
