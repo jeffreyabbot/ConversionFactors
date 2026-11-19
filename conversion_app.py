@@ -975,8 +975,8 @@ def auto_detect_situational_modifiers(stats, yob, height, gp, orig_league_name, 
 	if position != "Bigs (C/PF)" and threep_pct < 0.28 and threep_att > 1.0:
 		suggested.append("Spacing Liability")
 
-	# 5. FTR / Whistle Tax (Standard FTR = FTA/FGA > 0.40, Tier 6/7 to Tier 5)
-	fta = stats.get("FTm", 0.0)
+	# 5. FTR / Whistle Tax (Oliver FT Factor = FTM/FGA > 0.40, Tier 6/7 to Tier 5)
+	ftm = stats.get("FTM", 0.0)
 	fga = stats.get("FGA", 0.0)
 	raw_ftr = ftm / fga if fga > 0 else 0.0
 	if raw_ftr > 0.40 and orig_tier >= 6.0 and dest_tier <= 5.0:
